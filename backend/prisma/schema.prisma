@@ -1,0 +1,143 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  OWNER
+  CLINIC
+  ADMIN
+  PUBLIC_VERIFIER
+}
+
+enum PetStatus {
+  REGISTERED
+  TRANSFER_PENDING
+  INACTIVE
+}
+
+enum MedicalRecordStatus {
+  PENDING
+  VERIFIED
+  REJECTED
+}
+
+enum CorrectionStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model User {
+  id            Int                 @id @default(autoincrement())
+  name          String
+  email         String              @unique
+  passwordHash  String              @map("password_hash")
+  role          UserRole            @default(OWNER)
+  pets          Pet[]               @relation("PetOwner")
+  clinicRecords MedicalRecord[]     @relation("ClinicRecords")
+  notifications Notification[]
+  corrections   CorrectionRequest[] @relation("OwnerCorrections")
+  reviews       CorrectionRequest[] @relation("ReviewerCorrections")
+  ownedFrom     OwnershipHistory[]  @relation("FromOwner")
+  ownedTo       OwnershipHistory[]  @relation("ToOwner")
+  verifiedRecords MedicalRecord[]   @relation("VerifierRecords")
+
+  @@map("users")
+}
+
+model Pet {
+  id            Int                 @id @default(autoincrement())
+  publicId      String              @unique @map("public_id")
+  name          String
+  species       String
+  breed         String
+  birthDate     DateTime            @map("birth_date")
+  age           Int?
+  color         String
+  physicalMark  String              @map("physical_mark")
+  status        PetStatus           @default(REGISTERED)
+  ownerId       Int                 @map("owner_id")
+  owner         User                @relation("PetOwner", fields: [ownerId], references: [id])
+  medicalRecords MedicalRecord[]
+  ownershipHistory OwnershipHistory[]
+  corrections   CorrectionRequest[]
+  createdAt     DateTime            @default(now()) @map("created_at")
+  updatedAt     DateTime            @updatedAt @map("updated_at")
+
+  @@map("pets")
+}
+
+model MedicalRecord {
+  id           Int                 @id @default(autoincrement())
+  petId        Int                 @map("pet_id")
+  pet          Pet                 @relation(fields: [petId], references: [id])
+  clinicId     Int                 @map("clinic_id")
+  clinic       User                @relation("ClinicRecords", fields: [clinicId], references: [id])
+  vaccineType  String              @map("vaccine_type")
+  batchNumber  String              @map("batch_number")
+  givenAt      DateTime            @map("given_at")
+  notes        String?
+  evidenceUrl  String?             @map("evidence_url")
+  status       MedicalRecordStatus @default(PENDING)
+  verifiedById Int?                @map("verified_by")
+  verifiedBy   User?               @relation("VerifierRecords", fields: [verifiedById], references: [id])
+  verifiedAt   DateTime?           @map("verified_at")
+  createdAt    DateTime            @default(now()) @map("created_at")
+
+  @@map("medical_records")
+}
+
+model OwnershipHistory {
+  id            Int       @id @default(autoincrement())
+  petId         Int       @map("pet_id")
+  pet           Pet       @relation(fields: [petId], references: [id])
+  fromOwnerId   Int       @map("from_owner_id")
+  fromOwner     User      @relation("FromOwner", fields: [fromOwnerId], references: [id])
+  toOwnerId     Int       @map("to_owner_id")
+  toOwner       User      @relation("ToOwner", fields: [toOwnerId], references: [id])
+  transferredAt DateTime? @map("transferred_at")
+
+  @@map("ownership_history")
+}
+
+model CorrectionRequest {
+  id          Int              @id @default(autoincrement())
+  petId       Int              @map("pet_id")
+  pet         Pet              @relation(fields: [petId], references: [id])
+  ownerId     Int              @map("owner_id")
+  owner       User             @relation("OwnerCorrections", fields: [ownerId], references: [id])
+  fieldName   String           @map("field_name")
+  oldValue    String           @map("old_value")
+  newValue    String           @map("new_value")
+  status      CorrectionStatus @default(PENDING)
+  reviewedById Int?            @map("reviewed_by")
+  reviewedBy  User?            @relation("ReviewerCorrections", fields: [reviewedById], references: [id])
+  reviewedAt  DateTime?        @map("reviewed_at")
+  reason      String?
+  createdAt   DateTime         @default(now()) @map("created_at")
+
+  @@map("correction_requests")
+}
+
+model Notification {
+  id        Int      @id @default(autoincrement())
+  userId    Int      @map("user_id")
+  user      User     @relation(fields: [userId], references: [id])
+  title     String
+  message   String
+  isRead    Boolean  @default(false) @map("is_read")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("notifications")
+}
