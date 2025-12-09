@@ -33,16 +33,16 @@ export const ClinicPendingRecords = () => {
   };
 
   return (
-    <div>
+    <div className="space-y-4">
       <PageHeader
         title="Catatan Vaksin Pending"
         description="Daftar catatan pending dari klinik Anda yang siap diverifikasi."
       />
-      <div className="flex justify-end mb-4">
+      <div className="flex justify-end">
         <button
           type="button"
           onClick={fetchPending}
-          className="rounded border px-4 py-2 text-sm text-primary border-primary hover:bg-primary hover:text-white transition"
+          className="rounded-full border border-primary/40 px-5 py-2 text-sm font-semibold text-primary transition hover:bg-primary hover:text-white"
         >
           Refresh
         </button>
@@ -51,25 +51,28 @@ export const ClinicPendingRecords = () => {
       {error && <p className="text-sm text-red-600">{error}</p>}
       <div className="space-y-3">
         {records.map((record) => (
-          <div key={record.id} className="bg-white p-4 rounded shadow flex justify-between">
+          <div
+            key={record.id}
+            className="flex flex-col justify-between gap-3 rounded-3xl border border-white/60 bg-white/90 p-4 shadow-sm md:flex-row md:items-center"
+          >
             <div>
               <p className="text-sm text-slate-500">
                 {record.pet?.name ?? 'Hewan'} ({record.pet?.publicId ?? `#${record.pet?.id ?? '-'}`})
               </p>
-              <p className="font-semibold">{record.vaccineType}</p>
+              <p className="text-lg font-semibold text-secondary">{record.vaccineType}</p>
               <p className="text-sm text-slate-600">
                 Batch {record.batchNumber} / {new Date(record.givenAt).toLocaleDateString()}
               </p>
             </div>
             <div className="flex gap-2">
               <button
-                className="text-sm text-green-600"
+                className="rounded-full bg-primary/10 px-4 py-2 text-sm font-semibold text-primary"
                 onClick={() => handleUpdate(record.id, 'VERIFIED')}
               >
                 Verifikasi
               </button>
               <button
-                className="text-sm text-red-600"
+                className="rounded-full bg-red-50 px-4 py-2 text-sm font-semibold text-red-500"
                 onClick={() => handleUpdate(record.id, 'REJECTED')}
               >
                 Tolak

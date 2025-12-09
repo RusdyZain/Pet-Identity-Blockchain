@@ -42,26 +42,27 @@ export const AdminDashboard = () => {
   }, []);
 
   return (
-    <div>
+    <div className="space-y-4">
       <PageHeader
         title="Dashboard Admin"
         description="Tinjau statistik global registrasi hewan dan aktivitas vaksinasi."
       />
       {loading && <Loader label="Memuat data..." />}
       {error && <p className="text-sm text-amber-600 mt-2">{error}</p>}
-      <div className="grid md:grid-cols-3 gap-4 mt-4">
-        <div className="bg-white p-4 rounded shadow">
-          <p className="text-sm text-slate-500">Hewan Terdaftar</p>
-          <p className="text-3xl font-bold">{summary.totalPets}</p>
-        </div>
-        <div className="bg-white p-4 rounded shadow">
-          <p className="text-sm text-slate-500">Catatan Vaksin</p>
-          <p className="text-3xl font-bold">{summary.totalMedicalRecords}</p>
-        </div>
-        <div className="bg-white p-4 rounded shadow">
-          <p className="text-sm text-slate-500">Transfer Kepemilikan</p>
-          <p className="text-3xl font-bold">{summary.totalTransfers}</p>
-        </div>
+      <div className="grid gap-4 md:grid-cols-3">
+        {[
+          { label: 'Hewan Terdaftar', value: summary.totalPets },
+          { label: 'Catatan Vaksin', value: summary.totalMedicalRecords },
+          { label: 'Transfer Kepemilikan', value: summary.totalTransfers },
+        ].map((item) => (
+          <div
+            key={item.label}
+            className="rounded-3xl border border-white/60 bg-white/90 p-6 text-center shadow-lg shadow-primary/5"
+          >
+            <p className="text-sm uppercase tracking-widest text-slate-400">{item.label}</p>
+            <p className="mt-2 text-4xl font-bold text-secondary">{item.value}</p>
+          </div>
+        ))}
       </div>
     </div>
   );

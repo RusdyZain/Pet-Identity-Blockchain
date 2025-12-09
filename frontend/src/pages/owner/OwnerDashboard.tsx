@@ -29,15 +29,18 @@ export const OwnerDashboard = () => {
   }, []);
 
   return (
-    <div>
+    <div className="space-y-4">
       <PageHeader
         title="Dashboard Pemilik"
         description="Kelola identitas hewan peliharaan, riwayat vaksin, koreksi data, dan transfer kepemilikan."
       />
-      <div className="mb-4 flex justify-end">
+      <div className="flex items-center justify-between rounded-2xl bg-white/70 px-4 py-3 shadow-sm">
+        <p className="text-sm text-slate-500">
+          {pets.length ? `${pets.length} hewan tercatat dalam akun Anda.` : 'Belum ada hewan terdaftar.'}
+        </p>
         <button
           onClick={() => navigate('/owner/pets/new')}
-          className="rounded bg-primary px-4 py-2 text-white text-sm font-semibold hover:bg-blue-700"
+          className="rounded-full bg-secondary px-5 py-2 text-sm font-semibold text-white shadow-lg shadow-secondary/30 transition hover:bg-primary"
         >
           + Registrasi Hewan
         </button>
@@ -57,7 +60,7 @@ export const OwnerDashboard = () => {
               key: 'status',
               header: 'Status',
               render: (pet) => (
-                <span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-semibold uppercase">
+                <span className="rounded-full bg-mist px-3 py-1 text-xs font-semibold uppercase text-primary">
                   {pet.status}
                 </span>
               ),
@@ -69,25 +72,25 @@ export const OwnerDashboard = () => {
                 <div className="flex flex-wrap gap-2">
                   <button
                     onClick={() => navigate(`/owner/pets/${pet.id}`)}
-                    className="text-sm text-primary hover:underline"
+                    className="text-sm font-semibold text-primary hover:underline"
                   >
                     Detail
                   </button>
                   <button
                     onClick={() => navigate(`/owner/pets/${pet.id}/medical-records`)}
-                    className="text-sm text-primary hover:underline"
+                    className="text-sm font-semibold text-primary hover:underline"
                   >
                     Riwayat Vaksin
                   </button>
                   <button
                     onClick={() => navigate(`/owner/pets/${pet.id}/corrections/new`)}
-                    className="text-sm text-primary hover:underline"
+                    className="text-sm font-semibold text-primary hover:underline"
                   >
                     Koreksi Data
                   </button>
                   <button
                     onClick={() => navigate(`/owner/pets/${pet.id}/transfer`)}
-                    className="text-sm text-primary hover:underline"
+                    className="text-sm font-semibold text-primary hover:underline"
                   >
                     Transfer
                   </button>

@@ -29,9 +29,12 @@ export const OwnerTransferPage = () => {
   };
 
   return (
-    <div className="max-w-xl">
+    <div className="max-w-xl space-y-4">
       <PageHeader title="Transfer Kepemilikan" />
-      <form className="space-y-4 bg-white p-6 rounded shadow" onSubmit={handleSubmit}>
+      <form
+        className="space-y-4 rounded-3xl border border-white/60 bg-white/90 p-6 shadow-lg shadow-primary/5"
+        onSubmit={handleSubmit}
+      >
         <TextField
           label="Email Calon Pemilik Baru"
           type="email"
@@ -41,7 +44,11 @@ export const OwnerTransferPage = () => {
         />
         {message && <p className="text-sm text-green-600">{message}</p>}
         {error && <p className="text-sm text-red-600">{error}</p>}
-        <button type="submit" className="rounded bg-primary px-4 py-2 text-white" disabled={loading}>
+        <button
+          type="submit"
+          className="rounded-full bg-secondary px-5 py-2 text-white shadow-lg shadow-secondary/30"
+          disabled={loading}
+        >
           {loading ? 'Mengirim...' : 'Kirim Permintaan'}
         </button>
       </form>

@@ -2,22 +2,21 @@ import { Link, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import type { UserRole } from '../../types';
 
-type NavLink = { label: string; to: string };
+type NavLink = { label: string; to: string; description?: string };
 
 const navConfig: Record<UserRole, NavLink[]> = {
   OWNER: [
-    { label: 'Dashboard', to: '/owner/dashboard' },
-    { label: 'Daftar Hewan', to: '/owner/dashboard' },
-    { label: 'Registrasi Hewan', to: '/owner/pets/new' },
-    { label: 'Notifikasi', to: '/owner/notifications' },
+    { label: 'Dashboard', to: '/owner/dashboard', description: 'Ringkasan hewan & vaksin' },
+    { label: 'Registrasi Hewan', to: '/owner/pets/new', description: 'Tambah identitas baru' },
+    { label: 'Notifikasi', to: '/owner/notifications', description: 'Info transfer & vaksin' },
   ],
   CLINIC: [
-    { label: 'Dashboard', to: '/clinic/dashboard' },
-    { label: 'Pending Vaksin', to: '/clinic/medical-records/pending' },
-    { label: 'Koreksi Data', to: '/clinic/corrections' },
-    { label: 'Notifikasi', to: '/clinic/notifications' },
+    { label: 'Dashboard', to: '/clinic/dashboard', description: 'Cari pasien & histori' },
+    { label: 'Pending Vaksin', to: '/clinic/medical-records/pending', description: 'Verifikasi catatan' },
+    { label: 'Koreksi Data', to: '/clinic/corrections', description: 'Review permintaan owner' },
+    { label: 'Notifikasi', to: '/clinic/notifications', description: 'Update reguler' },
   ],
-  ADMIN: [{ label: 'Dashboard', to: '/admin/dashboard' }],
+  ADMIN: [{ label: 'Dashboard', to: '/admin/dashboard', description: 'Statistik global' }],
   PUBLIC_VERIFIER: [],
 };
 
@@ -30,46 +29,64 @@ export const DashboardLayout = () => {
   const links = navConfig[user.role] ?? [];
 
   return (
-    <div className="min-h-screen bg-slate-100 flex">
-      <aside className="w-64 bg-white shadow-lg hidden md:flex flex-col">
-        <div className="p-4 border-b border-slate-200">
-          <p className="text-lg font-semibold text-primary">Pet Identity</p>
-          <p className="text-sm text-slate-500 capitalize">{user.role.toLowerCase()}</p>
-        </div>
-        <nav className="flex-1 p-4 space-y-2">
-          {links.map((link) => (
-            <Link
-              key={link.to}
-              to={link.to}
-              className={`block rounded px-3 py-2 text-sm font-medium ${
-                location.pathname === link.to
-                  ? 'bg-primary text-white'
-                  : 'text-slate-700 hover:bg-slate-100'
-              }`}
-            >
-              {link.label}
-            </Link>
-          ))}
-        </nav>
-      </aside>
-      <div className="flex-1 flex flex-col">
-        <header className="bg-white shadow-sm border-b border-slate-200">
-          <div className="px-6 py-4 flex justify-between items-center">
+    <div className="min-h-screen bg-gradient-to-br from-mist via-white to-slate-100">
+      <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-6 md:flex-row md:py-10">
+        <aside className="w-full rounded-3xl bg-white/80 p-6 shadow-[0_10px_30px_rgba(5,46,31,0.08)] backdrop-blur md:w-72">
+          <div className="rounded-2xl bg-gradient-to-br from-primary to-emerald-600 p-5 text-white shadow-lg">
+            <p className="text-xs uppercase tracking-[0.4em] text-white/70">Pet Identity</p>
+            <p className="mt-2 text-2xl font-semibold">Klinik Digital</p>
+            <p className="mt-3 text-sm text-white/80">
+              {user.role === 'CLINIC'
+                ? 'Kelola catatan medis dan validasi vaksin pasien Anda.'
+                : user.role === 'OWNER'
+                  ? 'Pantau kesehatan peliharaan dan kelola kepemilikan.'
+                  : 'Monitor statistik jaringan dan insight tren.'}
+            </p>
+          </div>
+          <nav className="mt-6 space-y-3">
+            {links.map((link) => {
+              const active = location.pathname === link.to;
+              return (
+                <Link
+                  key={link.to}
+                  to={link.to}
+                  className={`group block rounded-2xl border px-4 py-3 text-sm transition ${
+                    active
+                      ? 'border-transparent bg-mist text-primary shadow-sm'
+                      : 'border-slate-200 text-slate-600 hover:border-primary/40 hover:bg-white'
+                  }`}
+                >
+                  <p className="font-semibold">{link.label}</p>
+                  {link.description && (
+                    <p className="text-xs text-slate-400 group-hover:text-slate-500">{link.description}</p>
+                  )}
+                </Link>
+              );
+            })}
+          </nav>
+          <div className="mt-8 rounded-2xl border border-dashed border-primary/30 p-4 text-sm text-slate-500">
+            <p className="font-semibold text-secondary">Butuh bantuan?</p>
+            <p>Konsultasikan prosedur standar klinik dengan tim support kami.</p>
+          </div>
+        </aside>
+        <div className="flex-1">
+          <header className="flex flex-col gap-4 rounded-3xl bg-white/80 p-6 shadow-sm backdrop-blur md:flex-row md:items-center md:justify-between">
             <div>
-              <p className="text-sm text-slate-500">Masuk sebagai</p>
-              <p className="font-semibold">{user.name}</p>
+              <p className="text-xs uppercase tracking-widest text-slate-400">Masuk sebagai</p>
+              <p className="text-2xl font-semibold text-secondary">{user.name}</p>
+              <p className="text-sm capitalize text-slate-500">{user.role.toLowerCase()}</p>
             </div>
             <button
               onClick={logout}
-              className="text-sm font-medium text-primary border border-primary px-4 py-2 rounded hover:bg-primary hover:text-white transition"
+              className="inline-flex items-center justify-center rounded-full bg-secondary px-5 py-2 text-sm font-semibold text-white shadow-lg shadow-secondary/30 transition hover:bg-primary"
             >
               Keluar
             </button>
-          </div>
-        </header>
-        <main className="flex-1 p-4 md:p-6">
-          <Outlet />
-        </main>
+          </header>
+          <main className="mt-6 rounded-3xl bg-white/90 p-5 shadow-[0_15px_35px_rgba(15,118,110,0.08)] backdrop-blur">
+            <Outlet />
+          </main>
+        </div>
       </div>
     </div>
   );

@@ -7,10 +7,10 @@ interface SelectFieldProps extends SelectHTMLAttributes<HTMLSelectElement> {
 
 export const SelectField = ({ label, options, ...props }: SelectFieldProps) => {
   return (
-    <label className="block text-sm font-medium text-slate-700">
+    <label className="block text-sm font-semibold text-secondary/80">
       {label}
       <select
-        className="mt-1 w-full rounded border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+        className="mt-1 w-full rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/30"
         {...props}
       >
         {options.map((opt) => (

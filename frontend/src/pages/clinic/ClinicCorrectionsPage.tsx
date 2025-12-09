@@ -32,26 +32,26 @@ export const ClinicCorrectionsPage = () => {
   };
 
   return (
-    <div>
+    <div className="space-y-4">
       <PageHeader title="Koreksi Data Pending" />
       {loading && <Loader label="Memuat koreksi..." />}
       {error && <p className="text-sm text-red-600">{error}</p>}
       <div className="space-y-3">
         {items.map((item) => (
-          <div key={item.id} className="bg-white p-4 rounded shadow">
-            <p className="font-semibold">
+          <div key={item.id} className="rounded-3xl border border-white/50 bg-white/90 p-5 shadow-sm">
+            <p className="font-semibold text-secondary">
               {item.fieldName}: {item.oldValue} &rarr; {item.newValue}
             </p>
-            {item.reason && <p className="text-sm text-slate-500 mt-1">Alasan: {item.reason}</p>}
+            {item.reason && <p className="mt-1 text-sm text-slate-500">Alasan: {item.reason}</p>}
             <div className="mt-3 flex gap-3">
               <button
-                className="text-sm text-green-600"
+                className="rounded-full bg-primary/10 px-4 py-2 text-sm font-semibold text-primary"
                 onClick={() => handleReview(item.id, 'APPROVED')}
               >
                 Setujui
               </button>
               <button
-                className="text-sm text-red-600"
+                className="rounded-full bg-red-50 px-4 py-2 text-sm font-semibold text-red-500"
                 onClick={() => handleReview(item.id, 'REJECTED')}
               >
                 Tolak

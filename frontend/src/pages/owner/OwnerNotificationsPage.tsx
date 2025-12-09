@@ -32,7 +32,7 @@ export const OwnerNotificationsPage = () => {
   };
 
   return (
-    <div>
+    <div className="space-y-4">
       <PageHeader title="Notifikasi" />
       {loading && <Loader label="Memuat notifikasi..." />}
       {error && <p className="text-sm text-red-600">{error}</p>}
@@ -40,7 +40,9 @@ export const OwnerNotificationsPage = () => {
         {notifications.map((notification) => (
           <div
             key={notification.id}
-            className={`rounded border p-4 ${notification.isRead ? 'bg-slate-50' : 'bg-white'}`}
+            className={`rounded-2xl border border-white/50 p-4 shadow-sm ${
+              notification.isRead ? 'bg-mist/60' : 'bg-white/90'
+            }`}
           >
             <div className="flex justify-between items-start">
               <div>
@@ -51,10 +53,7 @@ export const OwnerNotificationsPage = () => {
                 </p>
               </div>
               {!notification.isRead && (
-                <button
-                  className="text-sm text-primary"
-                  onClick={() => handleMarkRead(notification.id)}
-                >
+                <button className="text-sm font-semibold text-primary" onClick={() => handleMarkRead(notification.id)}>
                   Tandai dibaca
                 </button>
               )}

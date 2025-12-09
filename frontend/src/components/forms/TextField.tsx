@@ -13,13 +13,16 @@ export const TextField = ({
   ...props
 }: TextFieldProps) => {
   const baseClass =
-    'mt-1 w-full rounded border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary';
+    'mt-1 w-full rounded-2xl border border-slate-200 bg-white/90 px-4 py-2.5 text-sm shadow-inner focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/30 transition';
 
   return (
-    <label className="block text-sm font-medium text-slate-700">
+    <label className="block text-sm font-semibold text-secondary/80">
       {label}
       {textarea ? (
-        <textarea className={`${baseClass} resize-none`} {...(props as TextareaHTMLAttributes<HTMLTextAreaElement>)} />
+        <textarea
+          className={`${baseClass} resize-none`}
+          {...(props as TextareaHTMLAttributes<HTMLTextAreaElement>)}
+        />
       ) : (
         <input className={baseClass} {...(props as InputHTMLAttributes<HTMLInputElement>)} />
       )}

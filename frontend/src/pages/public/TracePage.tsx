@@ -29,13 +29,16 @@ export const TracePage = () => {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-semibold text-slate-800">Trace Identitas Hewan</h2>
+      <div className="rounded-3xl bg-white/80 p-6 shadow-inner">
+        <h2 className="text-2xl font-semibold text-secondary">Trace Identitas Hewan</h2>
         <p className="text-sm text-slate-500">
           Masukkan kode publik / QR ID untuk memverifikasi identitas hewan secara publik.
         </p>
       </div>
-      <form className="space-y-4" onSubmit={handleSubmit}>
+      <form
+        className="space-y-4 rounded-3xl border border-white/60 bg-white/90 p-6 shadow-lg shadow-primary/5"
+        onSubmit={handleSubmit}
+      >
         <TextField
           label="Public ID"
           value={publicId}
@@ -45,7 +48,7 @@ export const TracePage = () => {
         />
         <button
           type="submit"
-          className="rounded bg-primary px-4 py-2 text-white font-semibold hover:bg-blue-700"
+          className="rounded-full bg-primary px-5 py-2 text-white font-semibold shadow-lg shadow-primary/30"
           disabled={loading}
         >
           {loading ? 'Mencari...' : 'Cari'}
@@ -54,7 +57,7 @@ export const TracePage = () => {
       {error && <p className="text-sm text-red-600">{error}</p>}
       {result && (
         <div className="space-y-4">
-          <div className="bg-slate-50 border border-slate-200 rounded p-4">
+          <div className="rounded-3xl border border-white/60 bg-white/90 p-5 shadow-sm">
             <p className="text-sm text-slate-500">Informasi Hewan</p>
             <h3 className="text-lg font-semibold">{result.name}</h3>
             <p className="text-sm text-slate-600">
@@ -62,8 +65,8 @@ export const TracePage = () => {
             </p>
             <p className="text-sm text-slate-500 mt-2">Pemilik: {result.ownerName}</p>
           </div>
-          <div>
-            <h4 className="text-md font-semibold mb-2">Ringkasan Vaksinasi Terverifikasi</h4>
+          <div className="rounded-3xl border border-white/60 bg-white/90 p-5 shadow-sm">
+            <h4 className="text-md font-semibold mb-2 text-secondary">Ringkasan Vaksinasi Terverifikasi</h4>
             <DataTable
               data={result.vaccines}
               columns={[

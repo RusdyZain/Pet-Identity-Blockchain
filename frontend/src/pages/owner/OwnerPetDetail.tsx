@@ -40,9 +40,9 @@ export const OwnerPetDetail = () => {
   return (
     <div className="space-y-4">
       <PageHeader title={`Detail Hewan - ${pet.name}`} />
-      <div className="grid md:grid-cols-2 gap-4">
-        <div className="bg-white p-4 rounded shadow">
-          <h3 className="text-lg font-semibold mb-3">Identitas</h3>
+      <div className="grid gap-4 md:grid-cols-2">
+        <div className="rounded-3xl border border-white/50 bg-white/90 p-5 shadow-sm">
+          <h3 className="text-lg font-semibold text-secondary mb-3">Identitas</h3>
           <dl className="space-y-2 text-sm">
             <div>
               <dt className="text-slate-500">Public ID</dt>
@@ -68,8 +68,8 @@ export const OwnerPetDetail = () => {
             </div>
           </dl>
         </div>
-        <div className="bg-white p-4 rounded shadow">
-          <h3 className="text-lg font-semibold mb-3">Riwayat Vaksin Terbaru</h3>
+        <div className="rounded-3xl border border-white/50 bg-white/90 p-5 shadow-sm">
+          <h3 className="text-lg font-semibold text-secondary mb-3">Riwayat Vaksin Terbaru</h3>
           {records.length === 0 ? (
             <p className="text-sm text-slate-500">Belum ada catatan vaksin.</p>
           ) : (

@@ -46,7 +46,10 @@ export const OwnerNewPet = () => {
         title="Registrasi Identitas Hewan"
         description="Masukkan data identitas sesuai dokumen resmi dan hasil verifikasi klinik."
       />
-      <form className="space-y-4 bg-white p-6 rounded shadow" onSubmit={handleSubmit}>
+      <form
+        className="space-y-4 rounded-3xl border border-white/60 bg-white/90 p-6 shadow-lg shadow-primary/5"
+        onSubmit={handleSubmit}
+      >
         <TextField label="Nama Hewan" value={form.name} onChange={handleChange('name')} required />
         <TextField label="Jenis (species)" value={form.species} onChange={handleChange('species')} required />
         <TextField label="Ras (breed)" value={form.breed} onChange={handleChange('breed')} required />
@@ -63,14 +66,14 @@ export const OwnerNewPet = () => {
         <div className="flex gap-3">
           <button
             type="submit"
-            className="rounded bg-primary px-4 py-2 text-white font-semibold"
+            className="rounded-full bg-primary px-5 py-2 text-white font-semibold shadow-lg shadow-primary/30"
             disabled={loading}
           >
             {loading ? 'Menyimpan...' : 'Simpan'}
           </button>
           <button
             type="button"
-            className="rounded border px-4 py-2 text-sm"
+            className="rounded-full border border-slate-200 px-4 py-2 text-sm text-slate-600"
             onClick={() => navigate(-1)}
           >
             Batal

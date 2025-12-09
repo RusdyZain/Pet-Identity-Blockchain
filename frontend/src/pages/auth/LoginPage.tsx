@@ -55,7 +55,7 @@ export const LoginPage = () => {
         <button
           type="submit"
           disabled={loading}
-          className="w-full rounded bg-primary px-4 py-2 text-white font-semibold hover:bg-blue-700 disabled:opacity-60"
+          className="w-full rounded-full bg-primary px-4 py-2 text-white font-semibold shadow-lg shadow-primary/30 disabled:opacity-60"
         >
           {loading ? 'Memproses...' : 'Masuk'}
         </button>

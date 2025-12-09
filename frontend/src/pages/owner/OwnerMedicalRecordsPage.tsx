@@ -29,21 +29,21 @@ export const OwnerMedicalRecordsPage = () => {
   }, [id]);
 
   return (
-    <div>
+    <div className="space-y-4">
       <PageHeader title="Riwayat Vaksin / Kesehatan" />
       {loading && <Loader label="Memuat catatan medis..." />}
       {error && <p className="text-sm text-red-600">{error}</p>}
       <div className="space-y-3">
         {records.map((record) => (
-          <div key={record.id} className="bg-white rounded shadow p-4">
-            <p className="font-semibold">{record.vaccineType}</p>
+          <div key={record.id} className="rounded-2xl border border-white/60 bg-white/90 p-4 shadow-sm">
+            <p className="text-lg font-semibold text-secondary">{record.vaccineType}</p>
             <p className="text-sm text-slate-600">
               Nomor Batch: {record.batchNumber} | {new Date(record.givenAt).toLocaleDateString()}
             </p>
-            <p className="text-xs uppercase mt-2">Status: {record.status}</p>
+            <p className="mt-2 text-xs font-semibold uppercase text-primary">Status: {record.status}</p>
             {record.evidenceUrl && (
-              <a className="text-primary text-sm" href={record.evidenceUrl} target="_blank" rel="noreferrer">
-                Bukti
+              <a className="text-sm font-semibold text-primary underline" href={record.evidenceUrl} target="_blank" rel="noreferrer">
+                Lihat bukti
               </a>
             )}
           </div>

@@ -74,12 +74,15 @@ export const OwnerCorrectionForm = () => {
   };
 
   if (loading) return <Loader label="Memuat data..." />;
-  if (!pet) return <p>Data hewan tidak ditemukan.</p>;
+  if (!pet) return <p className="text-sm text-red-600">Data hewan tidak ditemukan.</p>;
 
   return (
     <div className="max-w-2xl space-y-4">
       <PageHeader title="Ajukan Koreksi Data" />
-      <form className="space-y-4 bg-white p-6 rounded shadow" onSubmit={handleSubmit}>
+      <form
+        className="space-y-4 rounded-3xl border border-white/60 bg-white/90 p-6 shadow-lg shadow-primary/5"
+        onSubmit={handleSubmit}
+      >
         <SelectField
           label="Field yang dikoreksi"
           value={field}
@@ -102,7 +105,10 @@ export const OwnerCorrectionForm = () => {
         />
         {error && <p className="text-sm text-red-600">{error}</p>}
         {success && <p className="text-sm text-green-600">{success}</p>}
-        <button type="submit" className="rounded bg-primary px-4 py-2 text-white font-semibold">
+        <button
+          type="submit"
+          className="rounded-full bg-primary px-5 py-2 text-white font-semibold shadow-lg shadow-primary/30"
+        >
           Kirim
         </button>
       </form>

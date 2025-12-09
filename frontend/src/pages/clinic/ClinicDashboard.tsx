@@ -37,20 +37,26 @@ export const ClinicDashboard = () => {
   };
 
   return (
-    <div>
+    <div className="space-y-4">
       <PageHeader
         title="Dashboard Klinik"
         description="Akses cepat terhadap identitas hewan, catatan vaksinasi, dan koreksi data."
       />
-      <form className="mb-4 flex flex-col md:flex-row gap-3" onSubmit={handleSearch}>
+      <form
+        className="mb-4 flex flex-col gap-3 rounded-2xl border border-white/60 bg-white/90 p-4 shadow-sm md:flex-row"
+        onSubmit={handleSearch}
+      >
         <input
           type="text"
           value={search}
           onChange={(e: ChangeEvent<HTMLInputElement>) => setSearch(e.currentTarget.value)}
           placeholder="Cari berdasarkan nama atau public ID"
-          className="flex-1 rounded border border-slate-300 px-3 py-2 text-sm"
+          className="flex-1 rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/30"
         />
-        <button type="submit" className="rounded bg-primary px-4 py-2 text-white font-semibold">
+        <button
+          type="submit"
+          className="rounded-full bg-secondary px-5 py-2 text-sm font-semibold text-white shadow-secondary/30 transition hover:bg-primary"
+        >
           Cari
         </button>
       </form>
@@ -70,7 +76,7 @@ export const ClinicDashboard = () => {
               render: (pet) => (
                 <button
                   onClick={() => navigate(`/clinic/pets/${pet.id}`)}
-                  className="text-sm text-primary hover:underline"
+                  className="text-sm font-semibold text-primary hover:underline"
                 >
                   Detail
                 </button>

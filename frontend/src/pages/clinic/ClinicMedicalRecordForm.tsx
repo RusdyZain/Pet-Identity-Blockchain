@@ -48,7 +48,10 @@ export const ClinicMedicalRecordForm = () => {
         title="Tambah Catatan Vaksin"
         description="Catatan baru otomatis berstatus PENDING sampai diverifikasi petugas klinik."
       />
-      <form className="space-y-4 bg-white p-6 rounded shadow" onSubmit={handleSubmit}>
+      <form
+        className="space-y-4 rounded-3xl border border-white/60 bg-white/90 p-6 shadow-lg shadow-primary/5"
+        onSubmit={handleSubmit}
+      >
         <TextField
           label="Jenis Vaksin"
           value={form.vaccine_type}
@@ -79,10 +82,18 @@ export const ClinicMedicalRecordForm = () => {
         {error && <p className="text-sm text-red-600">{error}</p>}
         {success && <p className="text-sm text-green-600">{success}</p>}
         <div className="flex gap-3">
-          <button type="submit" className="rounded bg-primary px-4 py-2 text-white" disabled={loading}>
+          <button
+            type="submit"
+            className="rounded-full bg-primary px-5 py-2 text-white shadow-lg shadow-primary/30"
+            disabled={loading}
+          >
             {loading ? 'Menyimpan...' : 'Simpan'}
           </button>
-          <button type="button" className="rounded border px-4 py-2 text-sm" onClick={() => navigate(-1)}>
+          <button
+            type="button"
+            className="rounded-full border border-slate-200 px-4 py-2 text-sm text-slate-600"
+            onClick={() => navigate(-1)}
+          >
             Batal
           </button>
         </div>
