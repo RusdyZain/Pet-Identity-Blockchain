@@ -3,6 +3,7 @@ import { UserRole } from '@prisma/client';
 import {
   createMedicalRecordController,
   listMedicalRecordsController,
+  listPendingRecordsController,
   verifyMedicalRecordController,
 } from '../controllers/medicalRecordController';
 import { authenticate, authorize } from '../middlewares/authMiddleware';
@@ -21,6 +22,13 @@ router.get(
   authenticate(),
   authorize([UserRole.OWNER, UserRole.CLINIC, UserRole.ADMIN]),
   listMedicalRecordsController,
+);
+
+router.get(
+  '/medical-records/pending',
+  authenticate(),
+  authorize([UserRole.CLINIC]),
+  listPendingRecordsController,
 );
 
 router.patch(

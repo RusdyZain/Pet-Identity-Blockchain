@@ -57,6 +57,16 @@ export const listMedicalRecords = async (petId: number, user: Express.UserContex
   });
 };
 
+export const listPendingRecordsForClinic = async (clinicId: number) => {
+  return prisma.medicalRecord.findMany({
+    where: { clinicId, status: MedicalRecordStatus.PENDING },
+    include: {
+      pet: { select: { id: true, name: true, publicId: true } },
+    },
+    orderBy: { givenAt: 'desc' },
+  });
+};
+
 export const verifyMedicalRecord = async (recordId: number, reviewerId: number, status: MedicalRecordStatus) => {
   if (!REVIEWABLE_MEDICAL_STATUS.includes(status)) {
     throw new AppError('Status tidak valid', 400);

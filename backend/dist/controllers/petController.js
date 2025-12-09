@@ -50,6 +50,9 @@ const getPetController = async (req, res, next) => {
         if (!req.user)
             throw new errors_1.AppError('Unauthorized', 401);
         const petId = Number(req.params.id);
+        if (!Number.isInteger(petId)) {
+            throw new errors_1.AppError('Invalid pet id', 400);
+        }
         const pet = await (0, petService_1.getPetById)(petId, req.user);
         res.json(pet);
     }
@@ -63,6 +66,9 @@ const ownershipHistoryController = async (req, res, next) => {
         if (!req.user)
             throw new errors_1.AppError('Unauthorized', 401);
         const petId = Number(req.params.petId);
+        if (!Number.isInteger(petId)) {
+            throw new errors_1.AppError('Invalid pet id', 400);
+        }
         const history = await (0, petService_1.getOwnershipHistory)(petId, req.user);
         res.json(history);
     }
@@ -76,6 +82,9 @@ const initiateTransferController = async (req, res, next) => {
         if (!req.user)
             throw new errors_1.AppError('Unauthorized', 401);
         const petId = Number(req.params.petId);
+        if (!Number.isInteger(petId)) {
+            throw new errors_1.AppError('Invalid pet id', 400);
+        }
         const { new_owner_email } = req.body;
         if (!new_owner_email)
             throw new errors_1.AppError('new_owner_email required', 400);
@@ -92,6 +101,9 @@ const acceptTransferController = async (req, res, next) => {
         if (!req.user)
             throw new errors_1.AppError('Unauthorized', 401);
         const petId = Number(req.params.petId);
+        if (!Number.isInteger(petId)) {
+            throw new errors_1.AppError('Invalid pet id', 400);
+        }
         const pet = await (0, petService_1.acceptTransfer)(petId, req.user.id);
         res.json(pet);
     }
@@ -105,6 +117,9 @@ const createCorrectionController = async (req, res, next) => {
         if (!req.user)
             throw new errors_1.AppError('Unauthorized', 401);
         const petId = Number(req.params.petId);
+        if (!Number.isInteger(petId)) {
+            throw new errors_1.AppError('Invalid pet id', 400);
+        }
         const { field_name, new_value, reason } = req.body;
         if (!field_name || !new_value)
             throw new errors_1.AppError('field_name dan new_value wajib', 400);

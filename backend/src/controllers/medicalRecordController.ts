@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import {
   createMedicalRecord,
   listMedicalRecords,
+  listPendingRecordsForClinic,
   verifyMedicalRecord,
 } from '../services/medicalRecordService';
 import { AppError } from '../utils/errors';
@@ -42,6 +43,16 @@ export const listMedicalRecordsController = async (req: Request, res: Response, 
     if (!req.user) throw new AppError('Unauthorized', 401);
     const petId = Number(req.params.petId);
     const records = await listMedicalRecords(petId, req.user);
+    res.json(records);
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const listPendingRecordsController = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    if (!req.user) throw new AppError('Unauthorized', 401);
+    const records = await listPendingRecordsForClinic(req.user.id);
     res.json(records);
   } catch (error) {
     next(error);

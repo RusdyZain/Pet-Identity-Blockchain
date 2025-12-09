@@ -32,6 +32,7 @@ export interface MedicalRecord {
   givenAt: string;
   status: 'PENDING' | 'VERIFIED' | 'REJECTED';
   clinic?: { name: string };
+  pet?: { id: number; name: string; publicId: string };
   notes?: string | null;
   evidenceUrl?: string | null;
 }

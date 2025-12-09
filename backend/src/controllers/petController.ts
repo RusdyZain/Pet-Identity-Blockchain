@@ -57,6 +57,9 @@ export const getPetController = async (req: Request, res: Response, next: NextFu
   try {
     if (!req.user) throw new AppError('Unauthorized', 401);
     const petId = Number(req.params.id);
+    if (!Number.isInteger(petId)) {
+      throw new AppError('Invalid pet id', 400);
+    }
     const pet = await getPetById(petId, req.user);
     res.json(pet);
   } catch (error) {
@@ -68,6 +71,9 @@ export const ownershipHistoryController = async (req: Request, res: Response, ne
   try {
     if (!req.user) throw new AppError('Unauthorized', 401);
     const petId = Number(req.params.petId);
+    if (!Number.isInteger(petId)) {
+      throw new AppError('Invalid pet id', 400);
+    }
     const history = await getOwnershipHistory(petId, req.user);
     res.json(history);
   } catch (error) {
@@ -79,6 +85,9 @@ export const initiateTransferController = async (req: Request, res: Response, ne
   try {
     if (!req.user) throw new AppError('Unauthorized', 401);
     const petId = Number(req.params.petId);
+    if (!Number.isInteger(petId)) {
+      throw new AppError('Invalid pet id', 400);
+    }
     const { new_owner_email } = req.body;
     if (!new_owner_email) throw new AppError('new_owner_email required', 400);
 
@@ -93,6 +102,9 @@ export const acceptTransferController = async (req: Request, res: Response, next
   try {
     if (!req.user) throw new AppError('Unauthorized', 401);
     const petId = Number(req.params.petId);
+    if (!Number.isInteger(petId)) {
+      throw new AppError('Invalid pet id', 400);
+    }
     const pet = await acceptTransfer(petId, req.user.id);
     res.json(pet);
   } catch (error) {
@@ -104,6 +116,9 @@ export const createCorrectionController = async (req: Request, res: Response, ne
   try {
     if (!req.user) throw new AppError('Unauthorized', 401);
     const petId = Number(req.params.petId);
+    if (!Number.isInteger(petId)) {
+      throw new AppError('Invalid pet id', 400);
+    }
     const { field_name, new_value, reason } = req.body;
     if (!field_name || !new_value) throw new AppError('field_name dan new_value wajib', 400);
 

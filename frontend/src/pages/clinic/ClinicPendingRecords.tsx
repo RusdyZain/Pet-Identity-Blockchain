@@ -1,22 +1,20 @@
-﻿import { useState } from 'react';
-import type { ChangeEvent, FormEvent } from 'react';
+import { useEffect, useState } from 'react';
 import { medicalRecordApi } from '../../services/apiClient';
 import type { MedicalRecord } from '../../types';
 import { Loader } from '../../components/common/Loader';
 import { PageHeader } from '../../components/common/PageHeader';
 
 export const ClinicPendingRecords = () => {
-  const [petId, setPetId] = useState('');
   const [records, setRecords] = useState<MedicalRecord[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const fetchData = async (id: string) => {
+  const fetchPending = async () => {
     setLoading(true);
     setError('');
     try {
-      const data = await medicalRecordApi.list(id);
-      setRecords(data.filter((record) => record.status === 'PENDING'));
+      const data = await medicalRecordApi.pending();
+      setRecords(data);
     } catch (err: any) {
       setError(err?.response?.data?.message ?? 'Gagal memuat data');
       setRecords([]);
@@ -25,41 +23,39 @@ export const ClinicPendingRecords = () => {
     }
   };
 
-  const handleSearch = (event: FormEvent) => {
-    event.preventDefault();
-    if (petId.trim()) {
-      fetchData(petId.trim());
-    }
-  };
+  useEffect(() => {
+    fetchPending();
+  }, []);
 
   const handleUpdate = async (id: number, status: 'VERIFIED' | 'REJECTED') => {
     await medicalRecordApi.verify(String(id), status);
-    if (petId) fetchData(petId);
+    fetchPending();
   };
 
   return (
     <div>
       <PageHeader
         title="Catatan Vaksin Pending"
-        description="Masukkan ID hewan untuk melihat catatan pending yang siap diverifikasi."
+        description="Daftar catatan pending dari klinik Anda yang siap diverifikasi."
       />
-      <form className="mb-4 flex gap-3" onSubmit={handleSearch}>
-        <input
-          value={petId}
-          onChange={(e: ChangeEvent<HTMLInputElement>) => setPetId(e.currentTarget.value)}
-          placeholder="Masukkan ID hewan"
-          className="flex-1 rounded border border-slate-300 px-3 py-2 text-sm"
-        />
-        <button type="submit" className="rounded bg-primary px-4 py-2 text-white font-semibold">
-          Tampilkan
+      <div className="flex justify-end mb-4">
+        <button
+          type="button"
+          onClick={fetchPending}
+          className="rounded border px-4 py-2 text-sm text-primary border-primary hover:bg-primary hover:text-white transition"
+        >
+          Refresh
         </button>
-      </form>
+      </div>
       {loading && <Loader label="Mengambil data..." />}
       {error && <p className="text-sm text-red-600">{error}</p>}
       <div className="space-y-3">
         {records.map((record) => (
           <div key={record.id} className="bg-white p-4 rounded shadow flex justify-between">
             <div>
+              <p className="text-sm text-slate-500">
+                {record.pet?.name ?? 'Hewan'} ({record.pet?.publicId ?? `#${record.pet?.id ?? '-'}`})
+              </p>
               <p className="font-semibold">{record.vaccineType}</p>
               <p className="text-sm text-slate-600">
                 Batch {record.batchNumber} / {new Date(record.givenAt).toLocaleDateString()}
@@ -81,15 +77,10 @@ export const ClinicPendingRecords = () => {
             </div>
           </div>
         ))}
-        {!loading && records.length === 0 && petId && (
-          <p className="text-sm text-slate-500">Tidak ada catatan pending untuk hewan ini.</p>
+        {!loading && records.length === 0 && (
+          <p className="text-sm text-slate-500">Tidak ada catatan pending saat ini.</p>
         )}
       </div>
     </div>
   );
 };
-
-
-
-
-

@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.verifyMedicalRecordController = exports.listMedicalRecordsController = exports.createMedicalRecordController = void 0;
+exports.verifyMedicalRecordController = exports.listPendingRecordsController = exports.listMedicalRecordsController = exports.createMedicalRecordController = void 0;
 const medicalRecordService_1 = require("../services/medicalRecordService");
 const errors_1 = require("../utils/errors");
 const createMedicalRecordController = async (req, res, next) => {
@@ -45,6 +45,18 @@ const listMedicalRecordsController = async (req, res, next) => {
     }
 };
 exports.listMedicalRecordsController = listMedicalRecordsController;
+const listPendingRecordsController = async (req, res, next) => {
+    try {
+        if (!req.user)
+            throw new errors_1.AppError('Unauthorized', 401);
+        const records = await (0, medicalRecordService_1.listPendingRecordsForClinic)(req.user.id);
+        res.json(records);
+    }
+    catch (error) {
+        next(error);
+    }
+};
+exports.listPendingRecordsController = listPendingRecordsController;
 const verifyMedicalRecordController = async (req, res, next) => {
     try {
         if (!req.user)

@@ -31,8 +31,8 @@ export const AdminDashboard = () => {
           totalMedicalRecords: data.totalMedicalRecords ?? 0,
           totalTransfers: data.totalTransfers ?? 0,
         });
-      } catch (err: any) {
-        setError('Gagal memuat statistik dari server. Menampilkan angka dummy.');
+      } catch (_err) {
+        setError('Gagal memuat statistik dari server. Menampilkan angka cadangan.');
         setSummary(fallbackSummary);
       } finally {
         setLoading(false);
@@ -48,7 +48,7 @@ export const AdminDashboard = () => {
         description="Tinjau statistik global registrasi hewan dan aktivitas vaksinasi."
       />
       {loading && <Loader label="Memuat data..." />}
-      {error && <p className="text-sm text-amber-600">{error}</p>}
+      {error && <p className="text-sm text-amber-600 mt-2">{error}</p>}
       <div className="grid md:grid-cols-3 gap-4 mt-4">
         <div className="bg-white p-4 rounded shadow">
           <p className="text-sm text-slate-500">Hewan Terdaftar</p>

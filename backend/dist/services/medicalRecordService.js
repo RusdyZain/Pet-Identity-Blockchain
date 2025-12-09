@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.verifyMedicalRecord = exports.listMedicalRecords = exports.createMedicalRecord = void 0;
+exports.verifyMedicalRecord = exports.listPendingRecordsForClinic = exports.listMedicalRecords = exports.createMedicalRecord = void 0;
 const client_1 = require("@prisma/client");
 const prisma_1 = require("../config/prisma");
 const errors_1 = require("../utils/errors");
@@ -47,6 +47,16 @@ const listMedicalRecords = async (petId, user) => {
     });
 };
 exports.listMedicalRecords = listMedicalRecords;
+const listPendingRecordsForClinic = async (clinicId) => {
+    return prisma_1.prisma.medicalRecord.findMany({
+        where: { clinicId, status: client_1.MedicalRecordStatus.PENDING },
+        include: {
+            pet: { select: { id: true, name: true, publicId: true } },
+        },
+        orderBy: { givenAt: 'desc' },
+    });
+};
+exports.listPendingRecordsForClinic = listPendingRecordsForClinic;
 const verifyMedicalRecord = async (recordId, reviewerId, status) => {
     if (!REVIEWABLE_MEDICAL_STATUS.includes(status)) {
         throw new errors_1.AppError('Status tidak valid', 400);

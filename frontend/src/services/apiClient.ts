@@ -83,6 +83,10 @@ export const medicalRecordApi = {
     const { data } = await api.get<MedicalRecord[]>(`/pets/${petId}/medical-records`);
     return data;
   },
+  pending: async () => {
+    const { data } = await api.get<MedicalRecord[]>(`/medical-records/pending`);
+    return data;
+  },
   create: async (
     petId: string,
     payload: {
