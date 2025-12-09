@@ -50,7 +50,7 @@ export const ClinicPetDetail = () => {
         <div className="bg-white p-4 rounded shadow">
           <h3 className="font-semibold mb-2">Identitas</h3>
           <p className="text-sm text-slate-600">
-            {pet.species} â€¢ {pet.breed}
+            {pet.species} • {pet.breed}
           </p>
           <p className="text-sm text-slate-600">Public ID: {pet.publicId}</p>
         </div>

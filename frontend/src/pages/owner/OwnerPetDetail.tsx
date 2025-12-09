@@ -63,7 +63,7 @@ export const OwnerPetDetail = () => {
             <div>
               <dt className="text-slate-500">Warna & Ciri Fisik</dt>
               <dd className="font-semibold">
-                {pet.color} â€¢ {pet.physicalMark}
+                {pet.color} • {pet.physicalMark}
               </dd>
             </div>
           </dl>
@@ -78,7 +78,7 @@ export const OwnerPetDetail = () => {
                 <li key={record.id} className="border rounded p-3">
                   <p className="font-semibold">{record.vaccineType}</p>
                   <p className="text-slate-500">
-                    {new Date(record.givenAt).toLocaleDateString()} â€¢ Status{' '}
+                    {new Date(record.givenAt).toLocaleDateString()} • Status{' '}
                     <span className="uppercase">{record.status}</span>
                   </p>
                 </li>
