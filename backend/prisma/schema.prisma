@@ -59,6 +59,7 @@ model User {
 model Pet {
   id            Int                 @id @default(autoincrement())
   publicId      String              @unique @map("public_id")
+  onChainPetId  Int?                @map("on_chain_pet_id")
   name          String
   species       String
   breed         String

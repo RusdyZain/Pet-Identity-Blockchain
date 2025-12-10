@@ -7,6 +7,8 @@ import {
 } from '../services/medicalRecordService';
 import { AppError } from '../utils/errors';
 import { MedicalRecordStatus } from '@prisma/client';
+import { addMedicalRecord } from '../blockchain/petIdentityClient';
+import { prisma } from '../config/prisma';
 
 export const createMedicalRecordController = async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -15,6 +17,14 @@ export const createMedicalRecordController = async (req: Request, res: Response,
     const { vaccine_type, batch_number, given_at, notes, evidence_url } = req.body;
     if (!vaccine_type || !batch_number || !given_at) {
       throw new AppError('Missing required fields', 400);
+    }
+
+    const pet = await prisma.pet.findUnique({ where: { id: petId } });
+    if (!pet) {
+      throw new AppError('Pet not found', 404);
+    }
+    if (!pet.onChainPetId) {
+      throw new AppError('Pet is not registered on blockchain', 400);
     }
 
     const givenAt = new Date(given_at);
@@ -32,7 +42,25 @@ export const createMedicalRecordController = async (req: Request, res: Response,
       evidenceUrl: evidence_url,
     });
 
-    res.status(201).json(record);
+    try {
+      const receipt = await addMedicalRecord(
+        Number(pet.onChainPetId),
+        record.vaccineType,
+        record.batchNumber,
+        Math.floor(givenAt.getTime() / 1000),
+      );
+      return res.status(201).json({
+        record,
+        blockchain: {
+          txHash: receipt.hash,
+        },
+      });
+    } catch (blockchainError: any) {
+      console.error('Failed to add medical record on blockchain', blockchainError);
+      return res.status(500).json({
+        error: blockchainError?.message ?? 'Failed to sync medical record to blockchain',
+      });
+    }
   } catch (error) {
     next(error);
   }

@@ -5,6 +5,11 @@ import { AppError } from '../utils/errors';
 import { createNotification } from './notificationService';
 import { correctionFieldMap, getPetFieldValue, CorrectionField } from './correctionFields';
 
+export const generatePublicId = () => {
+  const [segment] = randomUUID().split('-');
+  return `PET-${(segment || randomUUID()).slice(0, 8).toUpperCase()}`;
+};
+
 const maskOwnerName = (name: string) => {
   if (!name) return '';
   const parts = name.split(' ').filter(Boolean);
@@ -22,20 +27,25 @@ const calculateAge = (birthDate: Date) => {
   return Math.abs(ageDate.getUTCFullYear() - 1970);
 };
 
-export const createPet = async (ownerId: number, data: {
-  name: string;
-  species: string;
-  breed: string;
-  birthDate: Date;
-  color: string;
-  physicalMark: string;
-}) => {
-  const [segment] = randomUUID().split('-');
-  const publicId = `PET-${(segment || randomUUID()).slice(0, 8).toUpperCase()}`;
+export const createPet = async (
+  ownerId: number,
+  data: {
+    publicId?: string;
+    onChainPetId?: number | null;
+    name: string;
+    species: string;
+    breed: string;
+    birthDate: Date;
+    color: string;
+    physicalMark: string;
+  },
+) => {
+  const publicId = data.publicId ?? generatePublicId();
 
   const pet = await prisma.pet.create({
     data: {
       publicId,
+      onChainPetId: data.onChainPetId ?? null,
       name: data.name,
       species: data.species,
       breed: data.breed,

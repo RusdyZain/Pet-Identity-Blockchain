@@ -7,13 +7,22 @@ import {
   initiateTransfer,
   acceptTransfer,
   createCorrectionRequest,
+  generatePublicId,
 } from '../services/petService';
 import { AppError } from '../utils/errors';
+import { registerPet } from '../blockchain/petIdentityClient';
 
 export const createPetController = async (req: Request, res: Response, next: NextFunction) => {
   try {
     if (!req.user) throw new AppError('Unauthorized', 401);
     const { name, species, breed, birth_date, color, physical_mark } = req.body;
+    let { publicId, public_id: publicIdSnake } = req.body as { publicId?: string; public_id?: string };
+    let resolvedPublicId =
+      typeof publicId === 'string' && publicId.trim().length > 0
+        ? publicId.trim()
+        : typeof publicIdSnake === 'string' && publicIdSnake.trim().length > 0
+          ? publicIdSnake.trim()
+          : undefined;
 
     if (!name || !species || !breed || !birth_date || !color || !physical_mark) {
       throw new AppError('Missing required fields', 400);
@@ -24,16 +33,44 @@ export const createPetController = async (req: Request, res: Response, next: Nex
       throw new AppError('Tanggal lahir tidak valid', 400);
     }
 
-    const pet = await createPet(req.user.id, {
-      name,
-      species,
-      breed,
-      birthDate,
-      color,
-      physicalMark: physical_mark,
-    });
+    const birthDateTimestamp = Math.floor(birthDate.getTime() / 1000);
+    if (!resolvedPublicId) {
+      resolvedPublicId = generatePublicId();
+    }
 
-    res.status(201).json(pet);
+    try {
+      const { receipt, petId: onChainPetId } = await registerPet(
+        resolvedPublicId,
+        name,
+        species,
+        breed,
+        birthDateTimestamp,
+      );
+
+      const pet = await createPet(req.user.id, {
+        publicId: resolvedPublicId,
+        onChainPetId: Number(onChainPetId),
+        name,
+        species,
+        breed,
+        birthDate,
+        color,
+        physicalMark: physical_mark,
+      });
+
+      return res.status(201).json({
+        pet,
+        blockchain: {
+          txHash: receipt.hash,
+          onChainPetId: onChainPetId.toString(),
+        },
+      });
+    } catch (blockchainError: any) {
+      console.error('Failed to register pet on blockchain', blockchainError);
+      return res
+        .status(500)
+        .json({ error: blockchainError?.message ?? 'Failed to sync pet to blockchain' });
+    }
   } catch (error) {
     next(error);
   }
