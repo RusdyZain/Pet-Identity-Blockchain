@@ -1,5 +1,5 @@
-import { prisma } from '../config/prisma';
-import { AppError } from '../utils/errors';
+import { prisma } from "../config/prisma";
+import { AppError } from "../utils/errors";
 
 export const createNotification = async (params: {
   userId: number;
@@ -18,17 +18,20 @@ export const createNotification = async (params: {
 export const listNotifications = async (userId: number) => {
   return prisma.notification.findMany({
     where: { userId },
-    orderBy: { createdAt: 'desc' },
+    orderBy: { createdAt: "desc" },
   });
 };
 
-export const markNotificationAsRead = async (notificationId: number, userId: number) => {
+export const markNotificationAsRead = async (
+  notificationId: number,
+  userId: number
+) => {
   const notification = await prisma.notification.findUnique({
     where: { id: notificationId },
   });
 
   if (!notification || notification.userId !== userId) {
-    throw new AppError('Notification not found', 404);
+    throw new AppError("Notification not found", 404);
   }
 
   return prisma.notification.update({

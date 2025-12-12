@@ -1,25 +1,25 @@
-import { Router } from 'express';
-import { UserRole } from '@prisma/client';
+import { Router } from "express";
+import { UserRole } from "@prisma/client";
 import {
   listNotificationsController,
   markNotificationReadController,
-} from '../controllers/notificationController';
-import { authenticate, authorize } from '../middlewares/authMiddleware';
+} from "../controllers/notificationController";
+import { authenticate, authorize } from "../middlewares/authMiddleware";
 
 const router = Router();
 
 router.get(
-  '/notifications',
+  "/notifications",
   authenticate(),
   authorize([UserRole.OWNER, UserRole.CLINIC, UserRole.ADMIN]),
-  listNotificationsController,
+  listNotificationsController
 );
 
 router.patch(
-  '/notifications/:id/read',
+  "/notifications/:id/read",
   authenticate(),
   authorize([UserRole.OWNER, UserRole.CLINIC, UserRole.ADMIN]),
-  markNotificationReadController,
+  markNotificationReadController
 );
 
 export default router;

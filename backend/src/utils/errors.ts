@@ -9,6 +9,6 @@ export class AppError extends Error {
 
 export const assertRole = (role: string, allowed: string[]) => {
   if (!allowed.includes(role)) {
-    throw new AppError('Forbidden', 403);
+    throw new AppError("Forbidden", 403);
   }
 };

@@ -1,5 +1,5 @@
-import { Router } from 'express';
-import { UserRole } from '@prisma/client';
+import { Router } from "express";
+import { UserRole } from "@prisma/client";
 import {
   acceptTransferController,
   createCorrectionController,
@@ -8,58 +8,58 @@ import {
   initiateTransferController,
   listPetsController,
   ownershipHistoryController,
-} from '../controllers/petController';
-import { authenticate, authorize } from '../middlewares/authMiddleware';
+} from "../controllers/petController";
+import { authenticate, authorize } from "../middlewares/authMiddleware";
 
 const router = Router();
 
 router.post(
-  '/',
+  "/",
   authenticate(),
   authorize([UserRole.OWNER]),
-  createPetController,
+  createPetController
 );
 
 router.get(
-  '/',
+  "/",
   authenticate(),
   authorize([UserRole.OWNER, UserRole.CLINIC, UserRole.ADMIN]),
-  listPetsController,
+  listPetsController
 );
 
 router.get(
-  '/:id',
+  "/:id",
   authenticate(),
   authorize([UserRole.OWNER, UserRole.CLINIC, UserRole.ADMIN]),
-  getPetController,
+  getPetController
 );
 
 router.get(
-  '/:petId/ownership-history',
+  "/:petId/ownership-history",
   authenticate(),
   authorize([UserRole.OWNER, UserRole.CLINIC, UserRole.ADMIN]),
-  ownershipHistoryController,
+  ownershipHistoryController
 );
 
 router.post(
-  '/:petId/transfer',
+  "/:petId/transfer",
   authenticate(),
   authorize([UserRole.OWNER]),
-  initiateTransferController,
+  initiateTransferController
 );
 
 router.post(
-  '/:petId/transfer/accept',
+  "/:petId/transfer/accept",
   authenticate(),
   authorize([UserRole.OWNER]),
-  acceptTransferController,
+  acceptTransferController
 );
 
 router.post(
-  '/:petId/corrections',
+  "/:petId/corrections",
   authenticate(),
   authorize([UserRole.OWNER]),
-  createCorrectionController,
+  createCorrectionController
 );
 
 export default router;

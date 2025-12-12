@@ -1,25 +1,25 @@
-import { Router } from 'express';
-import { UserRole } from '@prisma/client';
+import { Router } from "express";
+import { UserRole } from "@prisma/client";
 import {
   listCorrectionsController,
   reviewCorrectionController,
-} from '../controllers/correctionController';
-import { authenticate, authorize } from '../middlewares/authMiddleware';
+} from "../controllers/correctionController";
+import { authenticate, authorize } from "../middlewares/authMiddleware";
 
 const router = Router();
 
 router.get(
-  '/corrections',
+  "/corrections",
   authenticate(),
   authorize([UserRole.CLINIC, UserRole.ADMIN]),
-  listCorrectionsController,
+  listCorrectionsController
 );
 
 router.patch(
-  '/corrections/:id',
+  "/corrections/:id",
   authenticate(),
   authorize([UserRole.CLINIC, UserRole.ADMIN]),
-  reviewCorrectionController,
+  reviewCorrectionController
 );
 
 export default router;

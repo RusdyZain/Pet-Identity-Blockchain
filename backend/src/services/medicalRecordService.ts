@@ -1,7 +1,7 @@
-import { MedicalRecordStatus, UserRole } from '@prisma/client';
-import { prisma } from '../config/prisma';
-import { AppError } from '../utils/errors';
-import { createNotification } from './notificationService';
+import { MedicalRecordStatus, UserRole } from "@prisma/client";
+import { prisma } from "../config/prisma";
+import { AppError } from "../utils/errors";
+import { createNotification } from "./notificationService";
 
 const REVIEWABLE_MEDICAL_STATUS: MedicalRecordStatus[] = [
   MedicalRecordStatus.VERIFIED,
@@ -23,7 +23,7 @@ export const createMedicalRecord = async (params: {
   });
 
   if (!pet) {
-    throw new AppError('Pet not found', 404);
+    throw new AppError("Pet not found", 404);
   }
 
   return prisma.medicalRecord.create({
@@ -40,20 +40,23 @@ export const createMedicalRecord = async (params: {
   });
 };
 
-export const listMedicalRecords = async (petId: number, user: Express.UserContext) => {
+export const listMedicalRecords = async (
+  petId: number,
+  user: Express.UserContext
+) => {
   const pet = await prisma.pet.findUnique({
     where: { id: petId },
     select: { ownerId: true },
   });
-  if (!pet) throw new AppError('Pet not found', 404);
+  if (!pet) throw new AppError("Pet not found", 404);
 
   if (user.role === UserRole.OWNER && pet.ownerId !== user.id) {
-    throw new AppError('Forbidden', 403);
+    throw new AppError("Forbidden", 403);
   }
 
   return prisma.medicalRecord.findMany({
     where: { petId },
-    orderBy: { givenAt: 'desc' },
+    orderBy: { givenAt: "desc" },
   });
 };
 
@@ -63,13 +66,17 @@ export const listPendingRecordsForClinic = async (clinicId: number) => {
     include: {
       pet: { select: { id: true, name: true, publicId: true } },
     },
-    orderBy: { givenAt: 'desc' },
+    orderBy: { givenAt: "desc" },
   });
 };
 
-export const verifyMedicalRecord = async (recordId: number, reviewerId: number, status: MedicalRecordStatus) => {
+export const verifyMedicalRecord = async (
+  recordId: number,
+  reviewerId: number,
+  status: MedicalRecordStatus
+) => {
   if (!REVIEWABLE_MEDICAL_STATUS.includes(status)) {
-    throw new AppError('Status tidak valid', 400);
+    throw new AppError("Status tidak valid", 400);
   }
 
   const record = await prisma.medicalRecord.findUnique({
@@ -77,13 +84,16 @@ export const verifyMedicalRecord = async (recordId: number, reviewerId: number, 
     include: { pet: { select: { ownerId: true, name: true } } },
   });
 
-  if (!record) throw new AppError('Medical record not found', 404);
+  if (!record) throw new AppError("Medical record not found", 404);
   if (record.status !== MedicalRecordStatus.PENDING) {
-    throw new AppError('Catatan sudah diverifikasi', 400);
+    throw new AppError("Catatan sudah diverifikasi", 400);
   }
 
   if (record.clinicId !== reviewerId) {
-    throw new AppError('Hanya klinik pembuat catatan yang dapat memverifikasi', 403);
+    throw new AppError(
+      "Hanya klinik pembuat catatan yang dapat memverifikasi",
+      403
+    );
   }
 
   const updated = await prisma.medicalRecord.update({
@@ -95,10 +105,11 @@ export const verifyMedicalRecord = async (recordId: number, reviewerId: number, 
     },
   });
 
-  const statusText = status === MedicalRecordStatus.VERIFIED ? 'terverifikasi' : 'ditolak';
+  const statusText =
+    status === MedicalRecordStatus.VERIFIED ? "terverifikasi" : "ditolak";
   await createNotification({
     userId: record.pet.ownerId,
-    title: 'Status catatan vaksin berubah',
+    title: "Status catatan vaksin berubah",
     message: `Catatan ${record.vaccineType} untuk ${record.pet.name} ${statusText}.`,
   });
 

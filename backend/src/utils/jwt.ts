@@ -1,15 +1,18 @@
-import { Secret, SignOptions, sign, verify } from 'jsonwebtoken';
-import type { StringValue } from 'ms';
-import { ENV } from '../config/env';
+import { Secret, SignOptions, sign, verify } from "jsonwebtoken";
+import type { StringValue } from "ms";
+import { ENV } from "../config/env";
 
 export interface JwtPayload {
   userId: number;
   role: string;
 }
 
-const secret: Secret = (ENV.jwtSecret || 'changeme') as Secret;
+const secret: Secret = (ENV.jwtSecret || "changeme") as Secret;
 
-export const signJwt = (payload: JwtPayload, expiresIn: StringValue | number = '12h') => {
+export const signJwt = (
+  payload: JwtPayload,
+  expiresIn: StringValue | number = "12h"
+) => {
   const options: SignOptions = { expiresIn };
   return sign(payload, secret, options);
 };

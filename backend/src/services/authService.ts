@@ -1,8 +1,8 @@
-import { UserRole } from '@prisma/client';
-import { prisma } from '../config/prisma';
-import { AppError } from '../utils/errors';
-import { hashPassword, comparePassword } from '../utils/password';
-import { signJwt } from '../utils/jwt';
+import { UserRole } from "@prisma/client";
+import { prisma } from "../config/prisma";
+import { AppError } from "../utils/errors";
+import { hashPassword, comparePassword } from "../utils/password";
+import { signJwt } from "../utils/jwt";
 
 const SELF_REGISTER_ROLES: UserRole[] = [UserRole.OWNER, UserRole.CLINIC];
 
@@ -13,14 +13,14 @@ export const registerUser = async (params: {
   role: UserRole;
 }) => {
   if (!SELF_REGISTER_ROLES.includes(params.role)) {
-    throw new AppError('Only OWNER or CLINIC can self-register', 400);
+    throw new AppError("Only OWNER or CLINIC can self-register", 400);
   }
 
   const email = params.email.toLowerCase();
 
   const existing = await prisma.user.findUnique({ where: { email } });
   if (existing) {
-    throw new AppError('Email already registered', 400);
+    throw new AppError("Email already registered", 400);
   }
 
   const passwordHash = await hashPassword(params.password);
@@ -37,19 +37,22 @@ export const registerUser = async (params: {
   return user;
 };
 
-export const loginUser = async (params: { email: string; password: string }) => {
+export const loginUser = async (params: {
+  email: string;
+  password: string;
+}) => {
   const email = params.email.toLowerCase();
   const user = await prisma.user.findUnique({
     where: { email },
   });
 
   if (!user) {
-    throw new AppError('Invalid credentials', 401);
+    throw new AppError("Invalid credentials", 401);
   }
 
   const isValid = await comparePassword(params.password, user.passwordHash);
   if (!isValid) {
-    throw new AppError('Invalid credentials', 401);
+    throw new AppError("Invalid credentials", 401);
   }
 
   const token = signJwt({ userId: user.id, role: user.role });

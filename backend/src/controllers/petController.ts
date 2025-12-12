@@ -1,4 +1,4 @@
-import { Request, Response, NextFunction } from 'express';
+import { Request, Response, NextFunction } from "express";
 import {
   createPet,
   getOwnershipHistory,
@@ -8,29 +8,43 @@ import {
   acceptTransfer,
   createCorrectionRequest,
   generatePublicId,
-} from '../services/petService';
-import { AppError } from '../utils/errors';
-import { registerPet } from '../blockchain/petIdentityClient';
+} from "../services/petService";
+import { AppError } from "../utils/errors";
+import { registerPet } from "../blockchain/petIdentityClient";
 
-export const createPetController = async (req: Request, res: Response, next: NextFunction) => {
+export const createPetController = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
   try {
-    if (!req.user) throw new AppError('Unauthorized', 401);
+    if (!req.user) throw new AppError("Unauthorized", 401);
     const { name, species, breed, birth_date, color, physical_mark } = req.body;
-    let { publicId, public_id: publicIdSnake } = req.body as { publicId?: string; public_id?: string };
+    let { publicId, public_id: publicIdSnake } = req.body as {
+      publicId?: string;
+      public_id?: string;
+    };
     let resolvedPublicId =
-      typeof publicId === 'string' && publicId.trim().length > 0
+      typeof publicId === "string" && publicId.trim().length > 0
         ? publicId.trim()
-        : typeof publicIdSnake === 'string' && publicIdSnake.trim().length > 0
-          ? publicIdSnake.trim()
-          : undefined;
+        : typeof publicIdSnake === "string" && publicIdSnake.trim().length > 0
+        ? publicIdSnake.trim()
+        : undefined;
 
-    if (!name || !species || !breed || !birth_date || !color || !physical_mark) {
-      throw new AppError('Missing required fields', 400);
+    if (
+      !name ||
+      !species ||
+      !breed ||
+      !birth_date ||
+      !color ||
+      !physical_mark
+    ) {
+      throw new AppError("Missing required fields", 400);
     }
 
     const birthDate = new Date(birth_date);
     if (Number.isNaN(birthDate.getTime())) {
-      throw new AppError('Tanggal lahir tidak valid', 400);
+      throw new AppError("Tanggal lahir tidak valid", 400);
     }
 
     const birthDateTimestamp = Math.floor(birthDate.getTime() / 1000);
@@ -44,7 +58,7 @@ export const createPetController = async (req: Request, res: Response, next: Nex
         name,
         species,
         breed,
-        birthDateTimestamp,
+        birthDateTimestamp
       );
 
       const pet = await createPet(req.user.id, {
@@ -66,21 +80,27 @@ export const createPetController = async (req: Request, res: Response, next: Nex
         },
       });
     } catch (blockchainError: any) {
-      console.error('Failed to register pet on blockchain', blockchainError);
+      console.error("Failed to register pet on blockchain", blockchainError);
       return res
         .status(500)
-        .json({ error: blockchainError?.message ?? 'Failed to sync pet to blockchain' });
+        .json({
+          error: blockchainError?.message ?? "Failed to sync pet to blockchain",
+        });
     }
   } catch (error) {
     next(error);
   }
 };
 
-export const listPetsController = async (req: Request, res: Response, next: NextFunction) => {
+export const listPetsController = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
   try {
-    if (!req.user) throw new AppError('Unauthorized', 401);
+    if (!req.user) throw new AppError("Unauthorized", 401);
     const search =
-      typeof req.query.search === 'string' && req.query.search.length > 0
+      typeof req.query.search === "string" && req.query.search.length > 0
         ? req.query.search
         : undefined;
     const pets = await listPets(req.user, search ? { search } : undefined);
@@ -90,12 +110,16 @@ export const listPetsController = async (req: Request, res: Response, next: Next
   }
 };
 
-export const getPetController = async (req: Request, res: Response, next: NextFunction) => {
+export const getPetController = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
   try {
-    if (!req.user) throw new AppError('Unauthorized', 401);
+    if (!req.user) throw new AppError("Unauthorized", 401);
     const petId = Number(req.params.id);
     if (!Number.isInteger(petId)) {
-      throw new AppError('Invalid pet id', 400);
+      throw new AppError("Invalid pet id", 400);
     }
     const pet = await getPetById(petId, req.user);
     res.json(pet);
@@ -104,12 +128,16 @@ export const getPetController = async (req: Request, res: Response, next: NextFu
   }
 };
 
-export const ownershipHistoryController = async (req: Request, res: Response, next: NextFunction) => {
+export const ownershipHistoryController = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
   try {
-    if (!req.user) throw new AppError('Unauthorized', 401);
+    if (!req.user) throw new AppError("Unauthorized", 401);
     const petId = Number(req.params.petId);
     if (!Number.isInteger(petId)) {
-      throw new AppError('Invalid pet id', 400);
+      throw new AppError("Invalid pet id", 400);
     }
     const history = await getOwnershipHistory(petId, req.user);
     res.json(history);
@@ -118,15 +146,19 @@ export const ownershipHistoryController = async (req: Request, res: Response, ne
   }
 };
 
-export const initiateTransferController = async (req: Request, res: Response, next: NextFunction) => {
+export const initiateTransferController = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
   try {
-    if (!req.user) throw new AppError('Unauthorized', 401);
+    if (!req.user) throw new AppError("Unauthorized", 401);
     const petId = Number(req.params.petId);
     if (!Number.isInteger(petId)) {
-      throw new AppError('Invalid pet id', 400);
+      throw new AppError("Invalid pet id", 400);
     }
     const { new_owner_email } = req.body;
-    if (!new_owner_email) throw new AppError('new_owner_email required', 400);
+    if (!new_owner_email) throw new AppError("new_owner_email required", 400);
 
     const result = await initiateTransfer(petId, req.user.id, new_owner_email);
     res.json(result);
@@ -135,12 +167,16 @@ export const initiateTransferController = async (req: Request, res: Response, ne
   }
 };
 
-export const acceptTransferController = async (req: Request, res: Response, next: NextFunction) => {
+export const acceptTransferController = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
   try {
-    if (!req.user) throw new AppError('Unauthorized', 401);
+    if (!req.user) throw new AppError("Unauthorized", 401);
     const petId = Number(req.params.petId);
     if (!Number.isInteger(petId)) {
-      throw new AppError('Invalid pet id', 400);
+      throw new AppError("Invalid pet id", 400);
     }
     const pet = await acceptTransfer(petId, req.user.id);
     res.json(pet);
@@ -149,15 +185,20 @@ export const acceptTransferController = async (req: Request, res: Response, next
   }
 };
 
-export const createCorrectionController = async (req: Request, res: Response, next: NextFunction) => {
+export const createCorrectionController = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
   try {
-    if (!req.user) throw new AppError('Unauthorized', 401);
+    if (!req.user) throw new AppError("Unauthorized", 401);
     const petId = Number(req.params.petId);
     if (!Number.isInteger(petId)) {
-      throw new AppError('Invalid pet id', 400);
+      throw new AppError("Invalid pet id", 400);
     }
     const { field_name, new_value, reason } = req.body;
-    if (!field_name || !new_value) throw new AppError('field_name dan new_value wajib', 400);
+    if (!field_name || !new_value)
+      throw new AppError("field_name dan new_value wajib", 400);
 
     const correction = await createCorrectionRequest({
       petId,

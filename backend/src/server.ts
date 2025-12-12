@@ -1,6 +1,6 @@
-import app from './app';
-import { ENV } from './config/env';
-import { connectPrisma } from './config/prisma';
+import app from "./app";
+import { ENV } from "./config/env";
+import { connectPrisma } from "./config/prisma";
 
 const start = async () => {
   await connectPrisma();
@@ -10,6 +10,6 @@ const start = async () => {
 };
 
 start().catch((error) => {
-  console.error('Failed to start server', error);
+  console.error("Failed to start server", error);
   process.exit(1);
 });

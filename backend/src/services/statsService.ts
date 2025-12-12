@@ -1,4 +1,4 @@
-import { prisma } from '../config/prisma';
+import { prisma } from "../config/prisma";
 
 export const getAdminSummary = async () => {
   const [totalPets, totalMedicalRecords, totalTransfers] = await Promise.all([

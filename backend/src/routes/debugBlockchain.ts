@@ -6,7 +6,7 @@ const router = Router();
 router.post('/debug/register-pet', async (req: Request, res: Response) => {
   try {
     const { publicId, name, species, breed, birthDate } = req.body;
-    const receipt = await registerPet(publicId, name, species, breed, Number(birthDate));
+    const { receipt } = await registerPet(publicId, name, species, breed, Number(birthDate));
     return res.json({ txHash: receipt.hash });
   } catch (error: any) {
     console.error('Failed to register pet via blockchain:', error);
