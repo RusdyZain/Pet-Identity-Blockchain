@@ -1,1 +1,0 @@
-{"version":3,"file":"correctionController.d.ts","sourceRoot":"","sources":["../../src/controllers/correctionController.ts"],"names":[],"mappings":"AAAA,OAAO,EAAE,OAAO,EAAE,QAAQ,EAAE,YAAY,EAAE,MAAM,SAAS,CAAC;AAK1D,eAAO,MAAM,yBAAyB,GAAU,KAAK,OAAO,EAAE,KAAK,QAAQ,EAAE,MAAM,YAAY,kBAS9F,CAAC;AAEF,eAAO,MAAM,0BAA0B,GAAU,KAAK,OAAO,EAAE,KAAK,QAAQ,EAAE,MAAM,YAAY,kBAiB/F,CAAC"}
