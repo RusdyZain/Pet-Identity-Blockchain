@@ -18,6 +18,7 @@ import { ClinicPendingRecords } from './pages/clinic/ClinicPendingRecords';
 import { ClinicCorrectionsPage } from './pages/clinic/ClinicCorrectionsPage';
 import { ClinicNotificationsPage } from './pages/clinic/ClinicNotificationsPage';
 import { AdminDashboard } from './pages/admin/AdminDashboard';
+import BlockchainSimulatorPage from './pages/BlockchainSimulatorPage';
 
 const App = () => {
   return (
@@ -53,6 +54,7 @@ const App = () => {
       <Route element={<ProtectedRoute allowedRoles={['ADMIN']} />}>
         <Route element={<DashboardLayout />}>
           <Route path="/admin/dashboard" element={<AdminDashboard />} />
+          <Route path="/admin/blockchain-simulator" element={<BlockchainSimulatorPage />} />
         </Route>
       </Route>
 

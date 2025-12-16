@@ -4,6 +4,41 @@ Platform skripsi yang menggabungkan backend Node.js/Express + frontend React unt
 
 ---
 
+## 0. Fitur platform saat ini
+
+### Autentikasi & otorisasi
+- Registrasi + login dengan JWT dan hashing kata sandi (`backend/src/controllers/authController.ts`) untuk tiga peran: **OWNER**, **CLINIC**, dan **ADMIN**.
+- Middleware `authenticate` + `authorize` (`backend/src/middlewares/authMiddleware.ts`) memastikan setiap endpoint mengikuti batasan role-based access control.
+
+### Modul Pemilik (Owner)
+- Dashboard React (`frontend/src/pages/owner/OwnerDashboard.tsx`) menampilkan daftar hewan, status vaksinasi, dan aksi cepat.
+- Form registrasi hewan baru (`OwnerNewPet.tsx`) memicu `createPetController` yang otomatis mengirim data ke blockchain dan PostgreSQL sekaligus membuat `publicId` unik.
+- Halaman detail (`OwnerPetDetail.tsx`) memperlihatkan profil lengkap, daftar medical record, dan tombol untuk memulai transfer kepemilikan.
+- Fitur permintaan koreksi (`OwnerCorrectionForm.tsx`) untuk mengganti atribut tertentu, lengkap dengan histori review.
+- Riwayat dan konfirmasi transfer (`OwnerTransferPage.tsx`) agar pemilik lama/baru dapat menerima atau menolak perpindahan kepemilikan.
+- Modul catatan medis (`OwnerMedicalRecordsPage.tsx`) hanya menampilkan data terverifikasi ke pemilik terkait.
+- Pusat notifikasi (`OwnerNotificationsPage.tsx`) mengambil data dari `backend/src/services/notificationService.ts`.
+
+### Modul Klinik
+- Dashboard klinik (`frontend/src/pages/clinic/ClinicDashboard.tsx`) menampilkan pasien aktif dan catatan menunggu verifikasi.
+- Klinik dapat menambahkan catatan vaksin lengkap dengan nomor batch dan bukti (`ClinicMedicalRecordForm.tsx`) yang akan mencatat transaksi on-chain melalui `addMedicalRecord`.
+- Daftar catatan pending (`ClinicPendingRecords.tsx`) dan aksi verifikasi/penolakan memanfaatkan `verifyMedicalRecordController`.
+- Klinik juga memantau dan memberi keputusan terhadap permintaan koreksi pemilik (`ClinicCorrectionsPage.tsx`).
+
+### Modul Admin & publik
+- Admin dashboard (`frontend/src/pages/admin/AdminDashboard.tsx`) memanggil `adminSummaryController` untuk mengetahui total pet, catatan medis, dan transfer terbaru.
+- Endpoint publik `GET /trace/:publicId` + halaman `frontend/src/pages/public/TracePage.tsx` memungkinkan siapa pun memeriksa keaslian data hewan bermodal `publicId` (mis. dari QR code).
+
+### Notifikasi & jejak data
+- Semua peristiwa penting (transfer selesai, koreksi disetujui, catatan vaksin diverifikasi) akan memanggil `createNotification` sehingga pengguna melihat status terbaru saat membuka aplikasi.
+- Riwayat kepemilikan (`getOwnershipHistory`) dan histori koreksi (`listCorrections`) memperkaya audit trail internal.
+
+### Blockchain & alat debugging
+- Registrasi hewan dan catatan vaksin langsung memanggil kontrak `PetIdentityRegistry` melalui `petIdentityClient`.
+- Router `backend/src/routes/debugBlockchain.ts` beserta halaman `frontend/src/pages/BlockchainSimulatorPage.tsx` menyediakan antarmuka manual untuk ping jaringan, register pet on-chain, dan membaca data langsung dari smart contract selama proses pengujian.
+
+---
+
 ## 1. Arsitektur & Tech Stack
 
 | Lapisan          | Teknologi utama                                                                                           |
@@ -147,28 +182,43 @@ Tambahkan ke app Express: `app.use('/api', debugBlockchainRouter);`
 
 ---
 
-## 7. Integrasi backend ↔ blockchain
+## 7. Detail blockchain & sinkronisasi data
 
-File `backend/src/blockchain/petIdentityClient.ts` menggunakan `ethers` v6 untuk menyimpan satu provider, wallet, dan contract instance. Fungsi penting:
+### 7.1 Kontrak PetIdentityRegistry (Solidity)
+Kontrak utama berada di `backend/contracts/PetIdentityRegistry.sol`. Fitur yang tersedia:
+- Menyimpan `Pet` dan `MedicalRecord` lengkap dengan `publicId`, timestamp kelahiran, klinik pembuat catatan, serta flag verifikasi.
+- Menyediakan event `PetRegistered`, `PetUpdated`, `MedicalRecordAdded`, `MedicalRecordVerified`, dan `OwnershipTransferred` untuk audit trail on-chain.
+- Mengharuskan klinik terdaftar (allowlist `clinics`) saat memanggil `addMedicalRecord`, `updatePetBasicData`, atau `verifyMedicalRecord`.
+- Memastikan hanya pemilik on-chain yang dapat memanggil `transferOwnership`.
+- Utility view seperti `getPet`, `getMedicalRecords`, dan `getPetIdByPublicId` untuk aplikasi publik.
 
-| Fungsi                    | Keterangan                                                                                 |
-|---------------------------|--------------------------------------------------------------------------------------------|
-| `registerPet(...)`        | Deploy call `registerPet`, parse event `PetRegistered` → kembalikan `{ receipt, petId }`.  |
-| `addMedicalRecord(...)`   | Tambah catatan medis ke kontrak memakai `onChainPetId`.                                     |
-| Fungsi lain               | `updatePetBasicData`, `verifyMedicalRecord`, `getPet`, `getMedicalRecords`, dsb.           |
+### 7.2 Client TypeScript (`backend/src/blockchain/petIdentityClient.ts`)
+Client ini memuat satu instance provider/wallet `ethers` dengan alamat kontrak dari variabel lingkungan. Fungsi yang diekspos:
 
-### Alur controller
-1. **POST /pets** (`createPetController`)
-   - Hitung `birthDateTimestamp`, panggil `registerPet` (blok onchain).
-   - Simpan entitas Pet di Postgres + `onChainPetId` hasil event.
-   - Respons: `{ pet, blockchain: { txHash, onChainPetId } }`.
+| Fungsi                      | Keterangan                                                                                               |
+|-----------------------------|----------------------------------------------------------------------------------------------------------|
+| `registerPet`               | Memanggil `registerPet` dan mem-parsing event `PetRegistered` guna mendapatkan `petId` on-chain.         |
+| `updatePetBasicData`        | Menjaga konsistensi data dasar hewan bila ada koreksi yang perlu disinkron ke blockchain.                |
+| `addMedicalRecord`          | Menambahkan catatan vaksin berdasarkan `onChainPetId` serta mengembalikan hash transaksi untuk UI.       |
+| `verifyMedicalRecord`       | Memperbarui status verifikasi catatan di kontrak jika dibutuhkan untuk skenario audit.                   |
+| `transferOwnership`         | (Opsional) memfasilitasi sinkronisasi kepemilikan bila ingin dicatat juga ke on-chain wallet address.    |
+| `getPet` / `getMedicalRecords` | Endpoint pembacaan langsung ketika diperlukan debugging atau fitur publik tambahan.                   |
 
-2. **POST /pets/:petId/medical-records**
-   - Ambil Pet dari DB, cek `onChainPetId` terisi.
-   - Simpan record di DB, lalu panggil `addMedicalRecord(onChainPetId, ...)`.
-   - Respons menyertakan `txHash`. Bila `onChainPetId` kosong, kembalikan error 400.
+### 7.3 Alur sinkronisasi backend <-> blockchain
+1. **Registrasi hewan (`POST /pets`)**  
+   Controller (`createPetController`) mengubah tanggal lahir menjadi detik Unix, memanggil `registerPet`, lalu menyimpan hasil `onChainPetId` di kolom `pet.onChainPetId`. Jika RPC gagal, request digagalkan agar data tetap konsisten.
+2. **Pencatatan vaksin (`POST /pets/:petId/medical-records`)**  
+   Backend mengecek apakah `onChainPetId` sudah tersedia. Jika iya, catatan dibuat di PostgreSQL lalu `addMedicalRecord` dipanggil dengan timestamp vaksin. Hash transaksi dikirim balik ke frontend sehingga klinik dapat menunjukkan bukti on-chain.
+3. **Verifikasi & koreksi**  
+   Klinik memverifikasi catatan di database. Bila diperlukan, admin/klinik dapat men-trigger `updatePetBasicData` atau `verifyMedicalRecord` agar perubahan tercermin di kontrak (fungsi sudah tersedia di client).
+4. **Pembacaan publik**  
+   Fitur Trace memanfaatkan database (karena sudah memuat data terverifikasi) sementara halaman simulator dapat menembak `getPet` / `getMedicalRecords` langsung untuk validasi silang.
 
-Dengan pola ini, database menjadi sumber data utama, sedangkan blockchain memberi bukti immutabel untuk setiap hewan dan riwayat vaksinnya.
+### 7.4 Debug endpoint & Blockchain Simulator
+- `backend/src/routes/debugBlockchain.ts` mengekspos endpoint `/api/debug/register-pet`, `/api/debug/pet/:id`, dan dapat diperluas dengan helper lain selama proses QA.
+- `frontend/src/pages/BlockchainSimulatorPage.tsx` adalah UI internal untuk ping backend, membuat pet/medical record langsung lewat debug endpoint, serta membaca data mentah dari node yang sama dengan backend. Sangat membantu saat menguji koneksi RPC, private key, atau event parsing sebelum fitur utama digunakan end-user.
+
+Dengan desain ini, PostgreSQL tetap menjadi sumber data utama untuk query kompleks dan otorisasi, sementara blockchain menyediakan bukti immutabel serta hash transaksi untuk dilampirkan pada laporan atau QR code.
 
 ---
 
