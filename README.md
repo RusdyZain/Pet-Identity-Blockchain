@@ -218,6 +218,39 @@ Client ini memuat satu instance provider/wallet `ethers` dengan alamat kontrak d
 - `backend/src/routes/debugBlockchain.ts` mengekspos endpoint `/api/debug/register-pet`, `/api/debug/pet/:id`, dan dapat diperluas dengan helper lain selama proses QA.
 - `frontend/src/pages/BlockchainSimulatorPage.tsx` adalah UI internal untuk ping backend, membuat pet/medical record langsung lewat debug endpoint, serta membaca data mentah dari node yang sama dengan backend. Sangat membantu saat menguji koneksi RPC, private key, atau event parsing sebelum fitur utama digunakan end-user.
 
+#### 7.4.1 Cara menggunakan simulator blockchain lokal
+1. **Mulai node Hardhat & deploy kontrak**  
+   ```bash
+   cd backend
+   npx hardhat node             # opsional jika ingin RPC lokal (default port 8545)
+   npx hardhat run scripts/deploy.js --network localhost
+   ```  
+   Perintah kedua akan menulis alamat kontrak terbaru ke `backend/deployed/petIdentity.json`.
+2. **Whitelist alamat backend sebagai klinik**  
+   Kontrak hanya mengizinkan klinik yang sudah di-allowlist memanggil fungsi `addMedicalRecord`/`updatePetBasicData`.  
+   ```bash
+   # masih di backend/
+   node -e "const { Wallet } = require('ethers');require('dotenv').config();console.log(new Wallet(process.env.BLOCKCHAIN_PRIVATE_KEY).address);"
+   npx hardhat console --network localhost
+   ```
+   Di dalam console Hardhat:  
+   ```js
+   const registry = await ethers.getContractAt(
+     "PetIdentityRegistry",
+     "0x5FbDB2315678afecb367f032d93F642f64180aa3" // alamat dari backend/deployed/petIdentity.json
+   );
+   await registry.addClinic("<alamat_wallet_backend>");
+   await registry.clinics("<alamat_wallet_backend>"); // pastikan true
+   ```
+   Gunakan akun pemilik kontrak (signer pertama saat deploy) untuk menjalankan `addClinic`.
+3. **Jalankan backend & frontend**  
+   Pastikan `.env` backend berisi `BLOCKCHAIN_RPC_URL`, `BLOCKCHAIN_PRIVATE_KEY`, dan `PET_IDENTITY_ADDRESS` yang baru. Setelah `npm run dev` di backend/frontend, akses `http://localhost:5173/admin/blockchain-simulator`.  
+   Rute simulator di-guard oleh `ProtectedRoute` dan kini dapat diakses oleh role ADMIN maupun CLINIC.
+4. **Gunakan UI simulator**  
+   - Register pet baru melalui kartu “Register Pet” → menyimpan hash transaksi.  
+   - Ambil data pet/catatan medis via “Fetch Pet/Records”. Jika ID belum ada akan muncul pesan “Pet ID tidak ditemukan”.  
+   - Tambah rekam medis lewat “Add Medical Record”. Bila whitelist belum diset, backend akan mengembalikan `CLINIC_ACCESS_DENIED` dengan instruksi menambahkan klinik seperti langkah di atas.
+
 Dengan desain ini, PostgreSQL tetap menjadi sumber data utama untuk query kompleks dan otorisasi, sementara blockchain menyediakan bukti immutabel serta hash transaksi untuk dilampirkan pada laporan atau QR code.
 
 ---

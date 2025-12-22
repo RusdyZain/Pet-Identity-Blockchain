@@ -6,6 +6,7 @@ import correctionRoutes from "./correctionRoutes";
 import notificationRoutes from "./notificationRoutes";
 import traceRoutes from "./traceRoutes";
 import adminRoutes from "./adminRoutes";
+import debugBlockchainRoutes from "./debugBlockchain";
 
 const router = Router();
 
@@ -16,5 +17,6 @@ router.use(correctionRoutes);
 router.use(notificationRoutes);
 router.use(traceRoutes);
 router.use(adminRoutes);
+router.use(debugBlockchainRoutes);
 
 export default router;

@@ -14,6 +14,13 @@ const formatJson = (value: unknown) => {
   }
 };
 
+const formatTimestamp = (value: string) =>
+  new Date(value).toLocaleTimeString('id-ID', {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  });
+
 const extractErrorMessage = async (response: Response) => {
   const contentType = response.headers.get('content-type') ?? '';
   if (contentType.includes('application/json')) {
@@ -59,6 +66,14 @@ const TextInput = ({ id, label, type = 'text', value, placeholder, required, onC
   </label>
 );
 
+type LogEntry = {
+  id: string;
+  action: string;
+  detail: string;
+  status: 'info' | 'success' | 'error';
+  timestamp: string;
+};
+
 export const BlockchainSimulatorPage = () => {
   const [networkStatus, setNetworkStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const [networkMessage, setNetworkMessage] = useState('');
@@ -78,6 +93,7 @@ export const BlockchainSimulatorPage = () => {
   const [fetchPetId, setFetchPetId] = useState('');
   const [petLoading, setPetLoading] = useState(false);
   const [petError, setPetError] = useState('');
+  const [petNotice, setPetNotice] = useState('');
   const [petData, setPetData] = useState<unknown | null>(null);
 
   const [recordForm, setRecordForm] = useState({
@@ -93,14 +109,28 @@ export const BlockchainSimulatorPage = () => {
   const [recordsPetId, setRecordsPetId] = useState('');
   const [recordsLoading, setRecordsLoading] = useState(false);
   const [recordsError, setRecordsError] = useState('');
+  const [recordsNotice, setRecordsNotice] = useState('');
   const [recordsData, setRecordsData] = useState<unknown | null>(null);
+  const [activityLog, setActivityLog] = useState<LogEntry[]>([]);
+
+  const pushLog = (entry: Omit<LogEntry, 'id' | 'timestamp'>) => {
+    setActivityLog((prev) => [
+      {
+        ...entry,
+        id: `${Date.now()}-${Math.random()}`,
+        timestamp: new Date().toISOString(),
+      },
+      ...prev,
+    ].slice(0, 12));
+  };
 
   const handlePing = async () => {
     setNetworkLoading(true);
     setNetworkStatus('idle');
     setNetworkMessage('');
+    pushLog({ action: 'Ping Backend', status: 'info', detail: 'Menghubungi endpoint /health' });
     try {
-      const response = await fetch(buildUrl('/api/health'));
+      const response = await fetch(buildUrl('/health'));
       if (!response.ok) {
         throw new Error(await extractErrorMessage(response));
       }
@@ -111,9 +141,15 @@ export const BlockchainSimulatorPage = () => {
       } else {
         setNetworkMessage('Backend is reachable.');
       }
+      pushLog({ action: 'Ping Backend', status: 'success', detail: 'Backend responsif' });
     } catch (error) {
       setNetworkStatus('error');
       setNetworkMessage(error instanceof Error ? error.message : 'Ping failed.');
+      pushLog({
+        action: 'Ping Backend',
+        status: 'error',
+        detail: error instanceof Error ? error.message : 'Ping gagal',
+      });
     } finally {
       setNetworkLoading(false);
     }
@@ -127,11 +163,23 @@ export const BlockchainSimulatorPage = () => {
 
   const handleRegisterSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    const birthDateValue = new Date(registerForm.birthDate);
+    if (Number.isNaN(birthDateValue.getTime())) {
+      setRegisterError('Tanggal lahir tidak valid.');
+      pushLog({
+        action: 'Register Pet',
+        status: 'error',
+        detail: 'Tanggal lahir tidak valid.',
+      });
+      return;
+    }
+    const birthDateTimestamp = Math.floor(birthDateValue.getTime() / 1000);
     setRegisterLoading(true);
     setRegisterError('');
     setRegisterTxHash('');
+    pushLog({ action: 'Register Pet', status: 'info', detail: 'Mengirim transaksi register' });
     try {
-      const response = await fetch(buildUrl('/api/debug/register-pet'), {
+      const response = await fetch(buildUrl('/debug/register-pet'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -141,7 +189,7 @@ export const BlockchainSimulatorPage = () => {
           name: registerForm.name.trim(),
           species: registerForm.species.trim(),
           breed: registerForm.breed.trim(),
-          birthDate: registerForm.birthDate,
+          birthDate: birthDateTimestamp,
         }),
       });
       if (!response.ok) {
@@ -149,8 +197,18 @@ export const BlockchainSimulatorPage = () => {
       }
       const data = await response.json().catch(() => ({}));
       setRegisterTxHash((data as Record<string, unknown>).txHash?.toString() ?? 'Transaction submitted.');
+      pushLog({
+        action: 'Register Pet',
+        status: 'success',
+        detail: (data as Record<string, unknown>).txHash ? `txHash: ${(data as Record<string, unknown>).txHash}` : 'Pet berhasil direkam',
+      });
     } catch (error) {
       setRegisterError(error instanceof Error ? error.message : 'Failed to register pet.');
+      pushLog({
+        action: 'Register Pet',
+        status: 'error',
+        detail: error instanceof Error ? error.message : 'Gagal menambahkan pet',
+      });
     } finally {
       setRegisterLoading(false);
     }
@@ -161,16 +219,35 @@ export const BlockchainSimulatorPage = () => {
     if (!fetchPetId.trim()) return;
     setPetLoading(true);
     setPetError('');
+    setPetNotice('');
     setPetData(null);
+    pushLog({ action: 'Fetch Pet', status: 'info', detail: `Mengambil data pet #${fetchPetId.trim()}` });
     try {
-      const response = await fetch(buildUrl(`/api/debug/pet/${fetchPetId.trim()}`));
+      const response = await fetch(buildUrl(`/debug/pet/${fetchPetId.trim()}`));
       if (!response.ok) {
         throw new Error(await extractErrorMessage(response));
       }
       const data = await response.json();
       setPetData(data);
+      setPetNotice('');
+      pushLog({ action: 'Fetch Pet', status: 'success', detail: `Data pet #${fetchPetId.trim()} diterima` });
     } catch (error) {
-      setPetError(error instanceof Error ? error.message : 'Failed to fetch pet.');
+      if (error instanceof Error && /id tidak ditemukan/i.test(error.message)) {
+        setPetNotice(error.message);
+        setPetError('');
+        pushLog({
+          action: 'Fetch Pet',
+          status: 'info',
+          detail: error.message,
+        });
+      } else {
+        setPetError(error instanceof Error ? error.message : 'Failed to fetch pet.');
+        pushLog({
+          action: 'Fetch Pet',
+          status: 'error',
+          detail: error instanceof Error ? error.message : 'Gagal mengambil data pet',
+        });
+      }
     } finally {
       setPetLoading(false);
     }
@@ -188,11 +265,23 @@ export const BlockchainSimulatorPage = () => {
       setRecordError('Pet ID is required.');
       return;
     }
+    const givenAtValue = new Date(recordForm.givenAt);
+    if (Number.isNaN(givenAtValue.getTime())) {
+      setRecordError('Tanggal pemberian tidak valid.');
+      pushLog({
+        action: 'Add Medical Record',
+        status: 'error',
+        detail: 'Tanggal pemberian tidak valid.',
+      });
+      return;
+    }
+    const givenAtTimestamp = Math.floor(givenAtValue.getTime() / 1000);
     setRecordLoading(true);
     setRecordError('');
+    pushLog({ action: 'Add Medical Record', status: 'info', detail: `Menulis rekam medis untuk pet #${recordForm.petId}` });
     setRecordTxHash('');
     try {
-      const response = await fetch(buildUrl('/api/debug/add-medical-record'), {
+      const response = await fetch(buildUrl('/debug/add-medical-record'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -201,7 +290,7 @@ export const BlockchainSimulatorPage = () => {
           petId: Number(recordForm.petId),
           vaccineType: recordForm.vaccineType.trim(),
           batchNumber: recordForm.batchNumber.trim(),
-          givenAt: recordForm.givenAt,
+          givenAt: givenAtTimestamp,
         }),
       });
       if (!response.ok) {
@@ -209,8 +298,20 @@ export const BlockchainSimulatorPage = () => {
       }
       const data = await response.json().catch(() => ({}));
       setRecordTxHash((data as Record<string, unknown>).txHash?.toString() ?? 'Transaction submitted.');
+      pushLog({
+        action: 'Add Medical Record',
+        status: 'success',
+        detail:
+          (data as Record<string, unknown>).txHash?.toString() ??
+          `Rekam medis pet #${recordForm.petId} berhasil`,
+      });
     } catch (error) {
       setRecordError(error instanceof Error ? error.message : 'Failed to add medical record.');
+      pushLog({
+        action: 'Add Medical Record',
+        status: 'error',
+        detail: error instanceof Error ? error.message : 'Gagal menulis rekam medis',
+      });
     } finally {
       setRecordLoading(false);
     }
@@ -221,16 +322,43 @@ export const BlockchainSimulatorPage = () => {
     if (!recordsPetId.trim()) return;
     setRecordsLoading(true);
     setRecordsError('');
+    setRecordsNotice('');
     setRecordsData(null);
+    pushLog({
+      action: 'Fetch Medical Records',
+      status: 'info',
+      detail: `Mengambil seluruh rekam medis pet #${recordsPetId.trim()}`,
+    });
     try {
-      const response = await fetch(buildUrl(`/api/debug/records/${recordsPetId.trim()}`));
+      const response = await fetch(buildUrl(`/debug/records/${recordsPetId.trim()}`));
       if (!response.ok) {
         throw new Error(await extractErrorMessage(response));
       }
       const data = await response.json();
       setRecordsData(data);
+      setRecordsNotice('');
+      pushLog({
+        action: 'Fetch Medical Records',
+        status: 'success',
+        detail: `Rekam medis pet #${recordsPetId.trim()} diterima`,
+      });
     } catch (error) {
-      setRecordsError(error instanceof Error ? error.message : 'Failed to fetch medical records.');
+      if (error instanceof Error && /id tidak ditemukan/i.test(error.message)) {
+        setRecordsNotice(error.message);
+        setRecordsError('');
+        pushLog({
+          action: 'Fetch Medical Records',
+          status: 'info',
+          detail: error.message,
+        });
+      } else {
+        setRecordsError(error instanceof Error ? error.message : 'Failed to fetch medical records.');
+        pushLog({
+          action: 'Fetch Medical Records',
+          status: 'error',
+          detail: error instanceof Error ? error.message : 'Gagal mengambil rekam medis',
+        });
+      }
     } finally {
       setRecordsLoading(false);
     }
@@ -321,8 +449,11 @@ export const BlockchainSimulatorPage = () => {
           </form>
           {registerError && <p className="text-sm text-red-600">{registerError}</p>}
           {registerTxHash && (
-            <div className="rounded-lg bg-slate-50 p-3 text-sm text-slate-700">
-              <p className="font-semibold text-slate-900">txHash</p>
+            <div className="rounded-lg bg-slate-50 p-3 text-sm text-slate-700 space-y-1.5">
+              <p className="font-semibold text-slate-900">Registrasi berhasil</p>
+              <p className="text-xs text-slate-500">
+                Pet tercatat di kontrak dan transaksi sudah final. Simpan txHash untuk audit:
+              </p>
               <p className="font-mono break-all text-slate-700">{registerTxHash}</p>
             </div>
           )}
@@ -350,6 +481,9 @@ export const BlockchainSimulatorPage = () => {
             </button>
           </form>
           {petError && <p className="text-sm text-red-600">{petError}</p>}
+          {petNotice && !petError && (
+            <p className="text-sm text-slate-600">{petNotice}</p>
+          )}
           {petData !== null && (
             <pre className="max-h-64 overflow-auto rounded-lg bg-slate-900 p-4 text-xs text-green-200">
               {formatJson(petData)}
@@ -402,8 +536,11 @@ export const BlockchainSimulatorPage = () => {
           </form>
           {recordError && <p className="text-sm text-red-600">{recordError}</p>}
           {recordTxHash && (
-            <div className="rounded-lg bg-slate-50 p-3 text-sm text-slate-700">
-              <p className="font-semibold text-slate-900">txHash</p>
+            <div className="rounded-lg bg-slate-50 p-3 text-sm text-slate-700 space-y-1.5">
+              <p className="font-semibold text-slate-900">Rekam medis tersimpan</p>
+              <p className="text-xs text-slate-500">
+                Catatan vaksin sudah dikirim ke blockchain. Gunakan txHash berikut untuk menelusuri transaksi:
+              </p>
               <p className="font-mono break-all text-slate-700">{recordTxHash}</p>
             </div>
           )}
@@ -431,10 +568,46 @@ export const BlockchainSimulatorPage = () => {
             </button>
           </form>
           {recordsError && <p className="text-sm text-red-600">{recordsError}</p>}
+          {recordsNotice && !recordsError && (
+            <p className="text-sm text-slate-600">{recordsNotice}</p>
+          )}
           {recordsData !== null && (
             <pre className="max-h-64 overflow-auto rounded-lg bg-slate-900 p-4 text-xs text-green-200">
               {formatJson(recordsData)}
             </pre>
+          )}
+        </section>
+        <section className={`${cardClass} md:col-span-1`}>
+          <div>
+            <p className="text-xs uppercase tracking-wide text-slate-500">Aktivitas Blockchain</p>
+            <p className="text-sm text-slate-600">
+              Lihat setiap langkah perubahan data yang dikirim ke blockchain simulator.
+              Jika <code className="font-mono text-xs">txHash</code> sudah muncul, berarti transaksi selesai.
+              Bila hash belum tersedia karena proses masih berlangsung, cek catatan di bawah untuk memastikan
+              tahapan apa saja yang sudah berjalan atau gagal.
+            </p>
+          </div>
+          {activityLog.length === 0 ? (
+            <p className="text-sm text-slate-500">Belum ada aktivitas. Cobalah kirim transaksi.</p>
+          ) : (
+            <ol className="space-y-3 text-sm">
+              {activityLog.map((entry) => (
+                <li
+                  key={entry.id}
+                  className={`rounded-xl border px-4 py-3 ${
+                    entry.status === 'success'
+                      ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                      : entry.status === 'error'
+                        ? 'border-red-200 bg-red-50 text-red-700'
+                        : 'border-slate-200 bg-slate-50 text-slate-700'
+                  }`}
+                >
+                  <p className="text-xs font-semibold uppercase tracking-wide">{entry.action}</p>
+                  <p className="text-sm">{entry.detail}</p>
+                  <p className="text-xs text-slate-500">{formatTimestamp(entry.timestamp)}</p>
+                </li>
+              ))}
+            </ol>
           )}
         </section>
       </div>

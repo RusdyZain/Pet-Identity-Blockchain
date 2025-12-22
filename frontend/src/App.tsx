@@ -54,6 +54,11 @@ const App = () => {
       <Route element={<ProtectedRoute allowedRoles={['ADMIN']} />}>
         <Route element={<DashboardLayout />}>
           <Route path="/admin/dashboard" element={<AdminDashboard />} />
+        </Route>
+      </Route>
+
+      <Route element={<ProtectedRoute allowedRoles={['ADMIN', 'CLINIC']} />}>
+        <Route element={<DashboardLayout />}>
           <Route path="/admin/blockchain-simulator" element={<BlockchainSimulatorPage />} />
         </Route>
       </Route>
