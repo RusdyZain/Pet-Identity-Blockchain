@@ -30,6 +30,21 @@ cache/
 typechain-types/
 deployed/
 
+# Remix workspace files (not used in this repo)
+contracts/README.txt
+contracts/remix.config.json
+contracts/.prettierrc.json
+contracts/contracts/1_Storage.sol
+contracts/contracts/2_Owner.sol
+contracts/contracts/3_Ballot.sol
+contracts/scripts/deploy_with_ethers.ts
+contracts/scripts/deploy_with_web3.ts
+contracts/scripts/ethers-lib.ts
+contracts/scripts/web3-lib.ts
+contracts/.states/vm-london/state.json
+remix-tests/Ballot_test.sol
+remix-tests/storage.test.js
+
 # IDE & system files
 .DS_Store
 Thumbs.db

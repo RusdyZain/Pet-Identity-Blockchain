@@ -107,6 +107,9 @@ Untuk Hardhat Sepolia, tambahkan juga:
 SEPOLIA_RPC_URL=https://sepolia.infura.io/v3/XXXX
 SEPOLIA_PRIVATE_KEY=0xabcdef...
 ```
+Catatan:
+- `BLOCKCHAIN_RPC_URL` adalah jaringan runtime yang dipakai backend saat berinteraksi dengan kontrak (bisa menunjuk ke Hardhat lokal atau Sepolia testnet).
+- `SEPOLIA_*` hanya dipakai oleh Hardhat untuk deploy dengan `--network sepolia`. Sepolia adalah test environment, bukan metode pengujian atau mekanisme konsensus.
 
 ### 4.2 Instalasi & migrasi
 ```powershell
@@ -278,7 +281,15 @@ Dengan desain ini, PostgreSQL tetap menjadi sumber data utama untuk query komple
 
 ---
 
-## 10. Referensi lanjut
+## 10. Scope pengujian skripsi
+
+- Fokus pengujian: fungsional, integrasi backend-smart contract, dan integritas data on-chain/off-chain.
+- Sepolia diperlakukan sebagai test environment untuk validasi eksternal saat diperlukan.
+- Tidak ada implementasi k6; pengujian performa bukan fokus utama penelitian ini.
+
+---
+
+## 11. Referensi lanjut
 
 - [Hardhat docs](https://hardhat.org/hardhat-runner/docs)
 - [Prisma](https://www.prisma.io/docs)

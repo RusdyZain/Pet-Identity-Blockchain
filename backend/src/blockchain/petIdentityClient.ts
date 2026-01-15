@@ -13,6 +13,8 @@ import fs from "fs";
 
 loadEnv();
 
+// Runtime RPC for application integration (local Hardhat or Sepolia testnet).
+// Sepolia is a test environment, not a testing method or consensus mechanism.
 const { BLOCKCHAIN_RPC_URL, BLOCKCHAIN_PRIVATE_KEY, PET_IDENTITY_ADDRESS } =
   process.env;
 
