@@ -10,6 +10,7 @@ import { MedicalRecordStatus } from "@prisma/client";
 import { addMedicalRecord } from "../blockchain/petIdentityClient";
 import { prisma } from "../config/prisma";
 
+// Handler pembuatan catatan medis (DB + blockchain).
 export const createMedicalRecordController = async (
   req: Request,
   res: Response,
@@ -76,6 +77,7 @@ export const createMedicalRecordController = async (
   }
 };
 
+// Handler daftar catatan medis untuk satu hewan.
 export const listMedicalRecordsController = async (
   req: Request,
   res: Response,
@@ -91,6 +93,7 @@ export const listMedicalRecordsController = async (
   }
 };
 
+// Handler daftar catatan PENDING untuk klinik.
 export const listPendingRecordsController = async (
   req: Request,
   res: Response,
@@ -105,6 +108,7 @@ export const listPendingRecordsController = async (
   }
 };
 
+// Handler verifikasi catatan medis oleh klinik.
 export const verifyMedicalRecordController = async (
   req: Request,
   res: Response,

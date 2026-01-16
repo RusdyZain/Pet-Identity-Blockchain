@@ -20,14 +20,17 @@ import { ClinicNotificationsPage } from './pages/clinic/ClinicNotificationsPage'
 import { AdminDashboard } from './pages/admin/AdminDashboard';
 import BlockchainSimulatorPage from './pages/BlockchainSimulatorPage';
 
+// App merangkum seluruh konfigurasi rute dan batasan akses.
 const App = () => {
   return (
     <Routes>
+      {/* Halaman publik tanpa autentikasi */}
       <Route element={<PublicLayout />}>
         <Route path="/login" element={<LoginPage />} />
         <Route path="/trace" element={<TracePage />} />
       </Route>
 
+      {/* Area khusus pemilik hewan */}
       <Route element={<ProtectedRoute allowedRoles={['OWNER']} />}>
         <Route element={<DashboardLayout />}>
           <Route path="/owner/dashboard" element={<OwnerDashboard />} />
@@ -40,6 +43,7 @@ const App = () => {
         </Route>
       </Route>
 
+      {/* Area khusus klinik dokter hewan */}
       <Route element={<ProtectedRoute allowedRoles={['CLINIC']} />}>
         <Route element={<DashboardLayout />}>
           <Route path="/clinic/dashboard" element={<ClinicDashboard />} />
@@ -51,18 +55,21 @@ const App = () => {
         </Route>
       </Route>
 
+      {/* Area khusus admin */}
       <Route element={<ProtectedRoute allowedRoles={['ADMIN']} />}>
         <Route element={<DashboardLayout />}>
           <Route path="/admin/dashboard" element={<AdminDashboard />} />
         </Route>
       </Route>
 
+      {/* Admin dan klinik bisa membuka halaman simulasi blockchain */}
       <Route element={<ProtectedRoute allowedRoles={['ADMIN', 'CLINIC']} />}>
         <Route element={<DashboardLayout />}>
           <Route path="/admin/blockchain-simulator" element={<BlockchainSimulatorPage />} />
         </Route>
       </Route>
 
+      {/* Default route dan fallback */}
       <Route path="/" element={<Navigate to="/login" replace />} />
       <Route path="*" element={<Navigate to="/login" replace />} />
     </Routes>

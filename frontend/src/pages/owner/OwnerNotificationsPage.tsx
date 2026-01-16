@@ -4,11 +4,13 @@ import type { Notification } from '../../types';
 import { Loader } from '../../components/common/Loader';
 import { PageHeader } from '../../components/common/PageHeader';
 
+// Halaman daftar notifikasi untuk pemilik.
 export const OwnerNotificationsPage = () => {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
+  // Ambil notifikasi terbaru dari server.
   const fetchData = async () => {
     setLoading(true);
     setError('');
@@ -26,6 +28,7 @@ export const OwnerNotificationsPage = () => {
     fetchData();
   }, []);
 
+  // Tandai notifikasi sebagai sudah dibaca.
   const handleMarkRead = async (id: number) => {
     await notificationApi.markRead(String(id));
     fetchData();

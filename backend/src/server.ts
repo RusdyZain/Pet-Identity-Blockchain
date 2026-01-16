@@ -2,6 +2,7 @@ import app from "./app";
 import { ENV } from "./config/env";
 import { connectPrisma } from "./config/prisma";
 
+// Mulai server setelah koneksi database siap.
 const start = async () => {
   await connectPrisma();
   app.listen(ENV.port, () => {
@@ -9,6 +10,7 @@ const start = async () => {
   });
 };
 
+// Tangani error startup agar proses berhenti dengan jelas.
 start().catch((error) => {
   console.error("Failed to start server", error);
   process.exit(1);

@@ -1,11 +1,14 @@
 import { useState } from 'react';
 import type { ChangeEvent, FormEvent } from 'react';
 
+// Ambil base URL dari env dan pastikan tidak ada trailing slash.
 const rawBaseUrl = import.meta.env.VITE_API_URL ?? 'http://localhost:4000';
 const API_BASE_URL = rawBaseUrl.endsWith('/') ? rawBaseUrl.slice(0, -1) : rawBaseUrl;
 
+// Helper untuk memastikan path selalu benar.
 const buildUrl = (path: string) => `${API_BASE_URL}${path.startsWith('/') ? path : `/${path}`}`;
 
+// Format objek ke JSON agar mudah dibaca di UI.
 const formatJson = (value: unknown) => {
   try {
     return JSON.stringify(value, null, 2);
@@ -14,6 +17,7 @@ const formatJson = (value: unknown) => {
   }
 };
 
+// Format jam agar log aktivitas mudah dibaca.
 const formatTimestamp = (value: string) =>
   new Date(value).toLocaleTimeString('id-ID', {
     hour: '2-digit',
@@ -21,6 +25,7 @@ const formatTimestamp = (value: string) =>
     second: '2-digit',
   });
 
+// Ambil pesan error paling relevan dari respons fetch.
 const extractErrorMessage = async (response: Response) => {
   const contentType = response.headers.get('content-type') ?? '';
   if (contentType.includes('application/json')) {
@@ -50,6 +55,7 @@ type TextInputProps = {
   onChange: (event: ChangeEvent<HTMLInputElement>) => void;
 };
 
+// Input sederhana yang dipakai berulang di form simulator.
 const TextInput = ({ id, label, type = 'text', value, placeholder, required, onChange }: TextInputProps) => (
   <label htmlFor={id} className="flex flex-col gap-1 text-sm text-slate-700">
     <span className="font-medium">{label}</span>
@@ -66,6 +72,7 @@ const TextInput = ({ id, label, type = 'text', value, placeholder, required, onC
   </label>
 );
 
+// Struktur data untuk mencatat aktivitas simulasi.
 type LogEntry = {
   id: string;
   action: string;
@@ -74,11 +81,14 @@ type LogEntry = {
   timestamp: string;
 };
 
+// Halaman simulasi untuk mengetes endpoint debug blockchain.
 export const BlockchainSimulatorPage = () => {
+  // Status jaringan backend.
   const [networkStatus, setNetworkStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const [networkMessage, setNetworkMessage] = useState('');
   const [networkLoading, setNetworkLoading] = useState(false);
 
+  // Form registrasi hewan baru.
   const [registerForm, setRegisterForm] = useState({
     publicId: '',
     name: '',
@@ -90,12 +100,14 @@ export const BlockchainSimulatorPage = () => {
   const [registerError, setRegisterError] = useState('');
   const [registerTxHash, setRegisterTxHash] = useState('');
 
+  // Form dan data untuk fetch satu hewan.
   const [fetchPetId, setFetchPetId] = useState('');
   const [petLoading, setPetLoading] = useState(false);
   const [petError, setPetError] = useState('');
   const [petNotice, setPetNotice] = useState('');
   const [petData, setPetData] = useState<unknown | null>(null);
 
+  // Form untuk menambah catatan vaksin.
   const [recordForm, setRecordForm] = useState({
     petId: '',
     vaccineType: '',
@@ -106,13 +118,16 @@ export const BlockchainSimulatorPage = () => {
   const [recordError, setRecordError] = useState('');
   const [recordTxHash, setRecordTxHash] = useState('');
 
+  // Form untuk melihat semua catatan vaksin.
   const [recordsPetId, setRecordsPetId] = useState('');
   const [recordsLoading, setRecordsLoading] = useState(false);
   const [recordsError, setRecordsError] = useState('');
   const [recordsNotice, setRecordsNotice] = useState('');
   const [recordsData, setRecordsData] = useState<unknown | null>(null);
+  // Log aktivitas untuk pelacakan langkah simulasi.
   const [activityLog, setActivityLog] = useState<LogEntry[]>([]);
 
+  // Tambahkan entry log terbaru ke bagian atas.
   const pushLog = (entry: Omit<LogEntry, 'id' | 'timestamp'>) => {
     setActivityLog((prev) => [
       {
@@ -124,6 +139,7 @@ export const BlockchainSimulatorPage = () => {
     ].slice(0, 12));
   };
 
+  // Ping endpoint /health untuk cek koneksi backend.
   const handlePing = async () => {
     setNetworkLoading(true);
     setNetworkStatus('idle');
@@ -155,12 +171,14 @@ export const BlockchainSimulatorPage = () => {
     }
   };
 
+  // Update field form registrasi dengan helper generator.
   const handleRegisterChange =
     (field: keyof typeof registerForm) => (event: ChangeEvent<HTMLInputElement>) => {
       const { value } = event.currentTarget;
       setRegisterForm((prev) => ({ ...prev, [field]: value }));
     };
 
+  // Submit registrasi hewan ke endpoint debug.
   const handleRegisterSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const birthDateValue = new Date(registerForm.birthDate);
@@ -214,6 +232,7 @@ export const BlockchainSimulatorPage = () => {
     }
   };
 
+  // Ambil data satu hewan berdasarkan ID.
   const handleFetchPet = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!fetchPetId.trim()) return;
@@ -253,12 +272,14 @@ export const BlockchainSimulatorPage = () => {
     }
   };
 
+  // Update field form catatan vaksin.
   const handleRecordChange =
     (field: keyof typeof recordForm) => (event: ChangeEvent<HTMLInputElement>) => {
       const { value } = event.currentTarget;
       setRecordForm((prev) => ({ ...prev, [field]: value }));
     };
 
+  // Submit catatan vaksin ke endpoint debug.
   const handleAddRecordSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!recordForm.petId.trim()) {
@@ -317,6 +338,7 @@ export const BlockchainSimulatorPage = () => {
     }
   };
 
+  // Ambil semua catatan vaksin berdasarkan pet ID.
   const handleFetchRecords = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!recordsPetId.trim()) return;
@@ -364,8 +386,10 @@ export const BlockchainSimulatorPage = () => {
     }
   };
 
+  // Kelas UI agar tampilan konsisten di setiap kartu.
   const cardClass =
     'rounded-2xl border border-slate-200 bg-white p-6 shadow-sm space-y-4';
+  // Kelas tombol utama di halaman simulator.
   const buttonClass =
     'inline-flex items-center justify-center rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-60';
 
@@ -378,6 +402,7 @@ export const BlockchainSimulatorPage = () => {
         </p>
       </div>
 
+      {/* Baris pertama: status jaringan + registrasi hewan */}
       <div className="grid gap-6 md:grid-cols-2">
         <section className={cardClass}>
           <div>
@@ -460,6 +485,7 @@ export const BlockchainSimulatorPage = () => {
         </section>
       </div>
 
+      {/* Baris kedua: fetch pet + tambah catatan vaksin */}
       <div className="grid gap-6 md:grid-cols-2">
         <section className={cardClass}>
           <div>
@@ -547,6 +573,7 @@ export const BlockchainSimulatorPage = () => {
         </section>
       </div>
 
+      {/* Baris ketiga: daftar catatan vaksin + log aktivitas */}
       <div className="grid gap-6 md:grid-cols-2">
         <section className={cardClass}>
           <div>

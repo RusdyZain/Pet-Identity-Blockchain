@@ -6,12 +6,14 @@ import { Loader } from '../../components/common/Loader';
 import { PageHeader } from '../../components/common/PageHeader';
 import { DataTable } from '../../components/common/DataTable';
 
+// Dashboard pemilik: list hewan dan pintasan aksi.
 export const OwnerDashboard = () => {
   const [pets, setPets] = useState<Pet[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const navigate = useNavigate();
 
+  // Ambil daftar hewan milik user saat halaman dibuka.
   useEffect(() => {
     const fetchPets = async () => {
       setLoading(true);

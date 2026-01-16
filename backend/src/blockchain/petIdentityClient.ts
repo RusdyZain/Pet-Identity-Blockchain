@@ -13,11 +13,11 @@ import fs from "fs";
 
 loadEnv();
 
-// Runtime RPC for application integration (local Hardhat or Sepolia testnet).
-// Sepolia is a test environment, not a testing method or consensus mechanism.
+// Konfigurasi RPC untuk integrasi aplikasi (Hardhat lokal atau testnet).
 const { BLOCKCHAIN_RPC_URL, BLOCKCHAIN_PRIVATE_KEY, PET_IDENTITY_ADDRESS } =
   process.env;
 
+// Pastikan variable environment wajib tersedia sebelum inisialisasi.
 if (!BLOCKCHAIN_RPC_URL) {
   throw new Error("Missing BLOCKCHAIN_RPC_URL in environment variables.");
 }
@@ -28,15 +28,18 @@ if (!PET_IDENTITY_ADDRESS) {
   throw new Error("Missing PET_IDENTITY_ADDRESS in environment variables.");
 }
 
+// Provider dan wallet untuk mengirim transaksi ke blockchain.
 const provider = new JsonRpcProvider(BLOCKCHAIN_RPC_URL);
 const wallet = new Wallet(BLOCKCHAIN_PRIVATE_KEY, provider);
 
+// ABI kontrak dibaca dari artifact hasil compile.
 const artifactPath = path.join(
   __dirname,
   "../../artifacts/contracts/PetIdentityRegistry.sol/PetIdentityRegistry.json"
 );
 const artifactJson = JSON.parse(fs.readFileSync(artifactPath, "utf-8"));
 
+// Tipe kontrak agar pemanggilan method lebih jelas di TypeScript.
 type PetIdentityContract = Contract & {
   registerPet: (
     publicId: string,
@@ -71,12 +74,14 @@ type PetIdentityContract = Contract & {
   getMedicalRecords: (petId: number) => Promise<any[]>;
 };
 
+// Instance kontrak yang terhubung dengan wallet backend.
 const contract: PetIdentityContract = new Contract(
   PET_IDENTITY_ADDRESS,
   artifactJson.abi,
   wallet
 ) as PetIdentityContract;
 
+// Daftarkan hewan di kontrak dan kembalikan receipt + petId on-chain.
 export async function registerPet(
   publicId: string,
   name: string,
@@ -96,6 +101,7 @@ export async function registerPet(
     throw new Error("Failed to fetch transaction receipt for registerPet");
   }
 
+  // Ambil event PetRegistered dari receipt untuk membaca petId.
   const eventFragment = contract.interface.getEvent("PetRegistered");
   if (!eventFragment) {
     throw new Error("PetRegistered event not found in ABI");
@@ -107,6 +113,7 @@ export async function registerPet(
     throw new Error("PetRegistered event not found in transaction receipt");
   }
 
+  // Decode log event agar bisa membaca petId hasil register.
   const parsedLog = contract.interface.parseLog(log);
   if (!parsedLog) {
     throw new Error("Failed to parse PetRegistered event log");
@@ -122,6 +129,7 @@ export async function registerPet(
   };
 }
 
+// Update data dasar hewan di kontrak.
 export async function updatePetBasicData(
   petId: number,
   name: string,
@@ -143,6 +151,7 @@ export async function updatePetBasicData(
   return receipt;
 }
 
+// Tambahkan catatan medis ke kontrak.
 export async function addMedicalRecord(
   petId: number,
   vaccineType: string,
@@ -162,6 +171,7 @@ export async function addMedicalRecord(
   return receipt;
 }
 
+// Verifikasi catatan medis di kontrak.
 export async function verifyMedicalRecord(
   petId: number,
   recordIndex: number,
@@ -175,6 +185,7 @@ export async function verifyMedicalRecord(
   return receipt;
 }
 
+// Transfer kepemilikan hewan di kontrak.
 export async function transferOwnership(
   petId: number,
   newOwner: string
@@ -187,15 +198,17 @@ export async function transferOwnership(
   return receipt;
 }
 
+// Ambil data hewan dari kontrak.
 export async function getPet(petId: number): Promise<any> {
   return contract.getPet(petId);
 }
 
+// Ambil seluruh catatan medis dari kontrak.
 export async function getMedicalRecords(petId: number): Promise<any[]> {
   return contract.getMedicalRecords(petId);
 }
 
-// Example usage in an Express handler
+// Contoh penggunaan di handler Express.
 /*
 import { Request, Response } from 'express';
 

@@ -5,6 +5,7 @@ import {
 } from "../services/notificationService";
 import { AppError } from "../utils/errors";
 
+// Handler list notifikasi user.
 export const listNotificationsController = async (
   req: Request,
   res: Response,
@@ -19,6 +20,7 @@ export const listNotificationsController = async (
   }
 };
 
+// Handler menandai notifikasi sebagai dibaca.
 export const markNotificationReadController = async (
   req: Request,
   res: Response,

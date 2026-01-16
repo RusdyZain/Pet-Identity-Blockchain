@@ -5,12 +5,14 @@ import type { MedicalRecord } from '../../types';
 import { Loader } from '../../components/common/Loader';
 import { PageHeader } from '../../components/common/PageHeader';
 
+// Halaman daftar seluruh catatan medis hewan.
 export const OwnerMedicalRecordsPage = () => {
   const { id } = useParams<{ id: string }>();
   const [records, setRecords] = useState<MedicalRecord[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
+  // Ambil data catatan medis berdasarkan ID hewan.
   useEffect(() => {
     const fetchRecords = async () => {
       if (!id) return;

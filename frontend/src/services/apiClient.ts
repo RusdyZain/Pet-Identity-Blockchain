@@ -9,16 +9,21 @@ import type {
   TraceResult,
 } from '../types';
 
+// Base URL API dari environment, fallback ke localhost.
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000';
 
+// Instance axios tunggal agar konfigurasi konsisten.
 const api = axios.create({
   baseURL: API_URL,
 });
 
+// Kunci token di localStorage.
 const TOKEN_KEY = 'petid_token';
 
+// Helper ambil token saat ini.
 const getToken = () => localStorage.getItem(TOKEN_KEY);
 
+// Tambahkan header Authorization otomatis untuk setiap request.
 api.interceptors.request.use((config) => {
   const token = getToken();
   if (token && config.headers) {
@@ -27,6 +32,7 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
+// API autentikasi (login, register, logout).
 export const authApi = {
   login: async (email: string, password: string) => {
     const { data } = await api.post<AuthResponse>('/auth/login', { email, password });
@@ -42,6 +48,7 @@ export const authApi = {
   },
 };
 
+// API untuk data hewan dan alur kepemilikan.
 export const petApi = {
   list: async (params?: { search?: string }) => {
     const { data } = await api.get<Pet[]>('/pets', { params });
@@ -78,6 +85,7 @@ export const petApi = {
   },
 };
 
+// API catatan medis / vaksin.
 export const medicalRecordApi = {
   list: async (petId: string) => {
     const { data } = await api.get<MedicalRecord[]>(`/pets/${petId}/medical-records`);
@@ -108,6 +116,7 @@ export const medicalRecordApi = {
   },
 };
 
+// API koreksi data dari pemilik.
 export const correctionApi = {
   create: async (
     petId: string,
@@ -131,6 +140,7 @@ export const correctionApi = {
   },
 };
 
+// API notifikasi untuk user.
 export const notificationApi = {
   list: async () => {
     const { data } = await api.get<Notification[]>('/notifications');
@@ -142,6 +152,7 @@ export const notificationApi = {
   },
 };
 
+// API trace publik berbasis public ID.
 export const traceApi = {
   getByPublicId: async (publicId: string) => {
     const { data } = await api.get<TraceResult>(`/trace/${publicId}`);
@@ -149,6 +160,7 @@ export const traceApi = {
   },
 };
 
+// API statistik admin.
 export const statsApi = {
   adminSummary: async () => {
     const { data } = await api.get('/admin/summary');

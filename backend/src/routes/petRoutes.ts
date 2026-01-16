@@ -13,6 +13,7 @@ import { authenticate, authorize } from "../middlewares/authMiddleware";
 
 const router = Router();
 
+// Route untuk data hewan dan alur transfer/koreksi.
 router.post(
   "/",
   authenticate(),

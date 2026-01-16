@@ -5,12 +5,14 @@ import type { TraceResult } from '../../types';
 import { TextField } from '../../components/forms/TextField';
 import { DataTable } from '../../components/common/DataTable';
 
+// Halaman publik untuk menelusuri identitas hewan lewat public ID.
 export const TracePage = () => {
   const [publicId, setPublicId] = useState('');
   const [result, setResult] = useState<TraceResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
+  // Kirim request trace berdasarkan input public ID.
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
     if (!publicId.trim()) return;

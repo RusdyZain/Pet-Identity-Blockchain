@@ -2,6 +2,7 @@ import { NextFunction, Request, Response } from "express";
 import { verifyJwt } from "../utils/jwt";
 import { AppError } from "../utils/errors";
 
+// Middleware autentikasi: memvalidasi JWT dan set req.user.
 export const authenticate =
   (options: { optional?: boolean } = {}) =>
   (req: Request, _res: Response, next: NextFunction) => {
@@ -22,6 +23,7 @@ export const authenticate =
     }
   };
 
+// Middleware otorisasi: membatasi akses berdasarkan role.
 export const authorize = (roles: string[]) => {
   return (req: Request, _res: Response, next: NextFunction) => {
     if (!req.user) {

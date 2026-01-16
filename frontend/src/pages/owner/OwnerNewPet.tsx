@@ -5,6 +5,7 @@ import { petApi } from '../../services/apiClient';
 import { TextField } from '../../components/forms/TextField';
 import { PageHeader } from '../../components/common/PageHeader';
 
+// Form registrasi hewan baru untuk pemilik.
 export const OwnerNewPet = () => {
   const [form, setForm] = useState({
     name: '',
@@ -19,11 +20,13 @@ export const OwnerNewPet = () => {
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
+  // Helper untuk update nilai form berdasarkan field.
   const handleChange =
     (field: keyof typeof form) => (event: ChangeEvent<HTMLInputElement>) => {
       setForm((prev) => ({ ...prev, [field]: event.target.value }));
     };
 
+  // Submit data registrasi ke API.
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
     setError('');

@@ -5,6 +5,7 @@ interface SelectFieldProps extends SelectHTMLAttributes<HTMLSelectElement> {
   options: { value: string; label: string }[];
 }
 
+// Dropdown sederhana dengan label dan daftar opsi.
 export const SelectField = ({ label, options, ...props }: SelectFieldProps) => {
   return (
     <label className="block text-sm font-semibold text-secondary/80">

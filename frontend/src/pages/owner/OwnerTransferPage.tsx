@@ -5,6 +5,7 @@ import { petApi } from '../../services/apiClient';
 import { TextField } from '../../components/forms/TextField';
 import { PageHeader } from '../../components/common/PageHeader';
 
+// Form transfer kepemilikan hewan ke email pemilik baru.
 export const OwnerTransferPage = () => {
   const { id } = useParams<{ id: string }>();
   const [email, setEmail] = useState('');
@@ -12,6 +13,7 @@ export const OwnerTransferPage = () => {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
+  // Kirim permintaan transfer ke API.
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
     if (!id) return;

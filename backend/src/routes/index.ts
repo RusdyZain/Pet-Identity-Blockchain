@@ -10,6 +10,7 @@ import debugBlockchainRoutes from "./debugBlockchain";
 
 const router = Router();
 
+// Gabungkan seluruh modul route.
 router.use(authRoutes);
 router.use("/pets", petRoutes);
 router.use(medicalRecordRoutes);

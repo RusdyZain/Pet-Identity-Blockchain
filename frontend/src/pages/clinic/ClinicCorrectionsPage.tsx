@@ -4,11 +4,13 @@ import type { CorrectionRequest } from '../../types';
 import { Loader } from '../../components/common/Loader';
 import { PageHeader } from '../../components/common/PageHeader';
 
+// Halaman review koreksi data yang diajukan pemilik.
 export const ClinicCorrectionsPage = () => {
   const [items, setItems] = useState<CorrectionRequest[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
+  // Ambil koreksi data yang statusnya masih pending.
   const fetchData = async () => {
     setLoading(true);
     setError('');
@@ -26,6 +28,7 @@ export const ClinicCorrectionsPage = () => {
     fetchData();
   }, []);
 
+  // Setujui atau tolak permintaan koreksi.
   const handleReview = async (id: number, status: 'APPROVED' | 'REJECTED') => {
     await correctionApi.review(String(id), { status });
     fetchData();

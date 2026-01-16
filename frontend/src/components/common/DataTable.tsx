@@ -12,7 +12,9 @@ interface DataTableProps<T> {
   emptyMessage?: string;
 }
 
+// Tabel generik yang bisa dipakai untuk berbagai tipe data.
 export function DataTable<T>({ columns, data, emptyMessage = 'Data tidak tersedia' }: DataTableProps<T>) {
+  // Tampilkan pesan kosong bila data belum ada.
   if (!data.length) {
     return (
       <div className="rounded-2xl border border-dashed border-primary/30 bg-white/70 px-4 py-6 text-center text-sm text-slate-500">
@@ -41,6 +43,7 @@ export function DataTable<T>({ columns, data, emptyMessage = 'Data tidak tersedi
             >
               {columns.map((col) => (
                 <td key={String(col.key)} className="px-5 py-4 text-slate-700">
+                  {/* Pakai render kustom jika disediakan, fallback ke data mentah */}
                   {col.render ? col.render(item) : ((item as any)[col.key] as React.ReactNode)}
                 </td>
               ))}

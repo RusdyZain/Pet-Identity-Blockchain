@@ -3,6 +3,7 @@ import { registerUser, loginUser } from "../services/authService";
 import { UserRole } from "@prisma/client";
 import { AppError } from "../utils/errors";
 
+// Handler registrasi user baru.
 export const register = async (
   req: Request,
   res: Response,
@@ -27,6 +28,7 @@ export const register = async (
   }
 };
 
+// Handler login user.
 export const login = async (
   req: Request,
   res: Response,

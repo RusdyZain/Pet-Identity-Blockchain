@@ -8,11 +8,13 @@ import {
   parsePetFieldValue,
 } from "./correctionFields";
 
+// Status yang diizinkan saat review koreksi.
 const REVIEWABLE_STATUSES: CorrectionStatus[] = [
   CorrectionStatus.APPROVED,
   CorrectionStatus.REJECTED,
 ];
 
+// List koreksi data (bisa difilter status).
 export const listCorrections = async (status?: CorrectionStatus) => {
   const where = status ? { status } : undefined;
   return prisma.correctionRequest.findMany({
@@ -25,6 +27,7 @@ export const listCorrections = async (status?: CorrectionStatus) => {
   });
 };
 
+// Setujui atau tolak koreksi, sekaligus update data jika disetujui.
 export const reviewCorrection = async (params: {
   correctionId: number;
   reviewerId: number;

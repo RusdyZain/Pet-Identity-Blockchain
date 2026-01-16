@@ -2,14 +2,17 @@ const fs = require('fs');
 const path = require('path');
 const { ethers, network } = require('hardhat');
 
+// Script deploy kontrak dan simpan info hasil deploy ke file.
 async function main() {
   const [deployer] = await ethers.getSigners();
   console.log('Deploying with account:', deployer.address);
 
+  // Compile + deploy kontrak.
   const PetIdentityRegistry = await ethers.getContractFactory('PetIdentityRegistry');
   const contract = await PetIdentityRegistry.deploy();
   await contract.waitForDeployment();
 
+  // Ambil alamat kontrak untuk disimpan.
   const address = await contract.getAddress();
   console.log('PetIdentityRegistry deployed to:', address);
 
@@ -21,6 +24,7 @@ async function main() {
     deployedAt: new Date().toISOString(),
   };
 
+  // Simpan output agar backend bisa membaca alamat kontrak.
   const outDir = path.join(__dirname, '..', 'deployed');
   fs.mkdirSync(outDir, { recursive: true });
   const outPath = path.join(outDir, 'petIdentity.json');

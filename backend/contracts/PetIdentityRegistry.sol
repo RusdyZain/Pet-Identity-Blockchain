@@ -6,6 +6,7 @@ pragma solidity ^0.8.20;
  * @notice Menyimpan identitas hewan, catatan medis, dan riwayat kepemilikan di blockchain.
  */
 contract PetIdentityRegistry {
+    // Data identitas dasar hewan.
     struct Pet {
         uint256 id;
         string publicId;
@@ -17,6 +18,7 @@ contract PetIdentityRegistry {
         bool exists;
     }
 
+    // Catatan vaksin/medis yang disimpan di chain.
     struct MedicalRecord {
         uint256 id;
         uint256 petId;
@@ -27,63 +29,80 @@ contract PetIdentityRegistry {
         bool verified;
     }
 
+    // Penyimpanan utama hewan berdasarkan id.
     mapping(uint256 => Pet) public pets;
+    // Peta publicId ke petId untuk lookup cepat.
     mapping(string => uint256) public publicIdToPetId;
+    // Riwayat catatan medis per hewan.
     mapping(uint256 => MedicalRecord[]) public medicalRecords;
 
+    // Counter id untuk pet dan record.
     uint256 public nextPetId;
     uint256 public nextRecordId;
 
+    // Pemilik kontrak (admin) dan daftar klinik yang diizinkan.
     address public contractOwner;
     mapping(address => bool) public clinics;
 
+    // Event untuk perubahan data klinik.
     event ClinicAdded(address clinic);
     event ClinicRemoved(address clinic);
 
+    // Event untuk pendaftaran dan perubahan pet.
     event PetRegistered(uint256 indexed petId, string publicId, address indexed owner);
     event PetUpdated(uint256 indexed petId);
 
+    // Event untuk catatan medis.
     event MedicalRecordAdded(uint256 indexed petId, uint256 indexed recordId);
     event MedicalRecordVerified(uint256 indexed petId, uint256 indexed recordId, bool verified);
 
+    // Event untuk transfer kepemilikan.
     event OwnershipTransferred(uint256 indexed petId, address indexed oldOwner, address indexed newOwner);
 
+    // Hanya pemilik kontrak.
     modifier onlyContractOwner() {
         require(msg.sender == contractOwner, "Not contract owner");
         _;
     }
 
+    // Hanya alamat klinik terdaftar.
     modifier onlyClinic() {
         require(clinics[msg.sender], "Caller is not clinic");
         _;
     }
 
+    // Pastikan petId valid.
     modifier petExists(uint256 petId) {
         require(pets[petId].exists, "Pet does not exist");
         _;
     }
 
+    // Hanya pemilik hewan saat ini.
     modifier onlyPetOwner(uint256 petId) {
         require(msg.sender == pets[petId].owner, "Not pet owner");
         _;
     }
 
+    // Set pemilik kontrak pada saat deploy.
     constructor() {
         contractOwner = msg.sender;
     }
 
+    // Tambah alamat klinik yang boleh menulis data.
     function addClinic(address clinic) external onlyContractOwner {
         require(clinic != address(0), "Invalid clinic");
         clinics[clinic] = true;
         emit ClinicAdded(clinic);
     }
 
+    // Hapus akses klinik.
     function removeClinic(address clinic) external onlyContractOwner {
         require(clinics[clinic], "Clinic not found");
         clinics[clinic] = false;
         emit ClinicRemoved(clinic);
     }
 
+    // Daftarkan hewan baru ke kontrak.
     function registerPet(
         string memory publicId,
         string memory name,
@@ -113,6 +132,7 @@ contract PetIdentityRegistry {
         return petId;
     }
 
+    // Update data dasar hewan oleh klinik.
     function updatePetBasicData(
         uint256 petId,
         string memory name,
@@ -129,6 +149,7 @@ contract PetIdentityRegistry {
         emit PetUpdated(petId);
     }
 
+    // Tambah catatan medis oleh klinik.
     function addMedicalRecord(
         uint256 petId,
         string memory vaccineType,
@@ -154,6 +175,7 @@ contract PetIdentityRegistry {
         return recordId;
     }
 
+    // Verifikasi/tolak catatan medis.
     function verifyMedicalRecord(
         uint256 petId,
         uint256 recordIndex,
@@ -167,6 +189,7 @@ contract PetIdentityRegistry {
         emit MedicalRecordVerified(petId, record.id, verified);
     }
 
+    // Transfer kepemilikan hewan ke alamat baru.
     function transferOwnership(uint256 petId, address newOwner)
         external
         petExists(petId)
@@ -180,6 +203,7 @@ contract PetIdentityRegistry {
         emit OwnershipTransferred(petId, oldOwner, newOwner);
     }
 
+    // Ambil data hewan berdasarkan id.
     function getPet(uint256 petId)
         external
         view
@@ -189,6 +213,7 @@ contract PetIdentityRegistry {
         return pets[petId];
     }
 
+    // Ambil daftar catatan medis berdasarkan petId.
     function getMedicalRecords(uint256 petId)
         external
         view
@@ -198,6 +223,7 @@ contract PetIdentityRegistry {
         return medicalRecords[petId];
     }
 
+    // Cari petId berdasarkan publicId.
     function getPetIdByPublicId(string memory publicId)
         external
         view

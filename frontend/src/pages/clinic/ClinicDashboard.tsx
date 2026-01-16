@@ -7,6 +7,7 @@ import { PageHeader } from '../../components/common/PageHeader';
 import { Loader } from '../../components/common/Loader';
 import { DataTable } from '../../components/common/DataTable';
 
+// Dashboard klinik untuk mencari hewan dan melihat detailnya.
 export const ClinicDashboard = () => {
   const [pets, setPets] = useState<Pet[]>([]);
   const [search, setSearch] = useState('');
@@ -14,6 +15,7 @@ export const ClinicDashboard = () => {
   const [error, setError] = useState('');
   const navigate = useNavigate();
 
+  // Ambil data hewan, bisa dengan parameter pencarian.
   const fetchPets = async (term?: string) => {
     setLoading(true);
     setError('');
@@ -27,10 +29,12 @@ export const ClinicDashboard = () => {
     }
   };
 
+  // Muat data awal saat halaman pertama dibuka.
   useEffect(() => {
     fetchPets();
   }, []);
 
+  // Submit pencarian berdasarkan nama atau public ID.
   const handleSearch = (event: FormEvent) => {
     event.preventDefault();
     fetchPets(search.trim() || undefined);

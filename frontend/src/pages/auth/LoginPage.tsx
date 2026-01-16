@@ -5,6 +5,7 @@ import { TextField } from '../../components/forms/TextField';
 import { useAuth } from '../../context/AuthContext';
 import type { UserRole } from '../../types';
 
+// Tujuan setelah login berdasarkan role.
 const redirectMap: Record<UserRole, string> = {
   OWNER: '/owner/dashboard',
   CLINIC: '/clinic/dashboard',
@@ -12,6 +13,7 @@ const redirectMap: Record<UserRole, string> = {
   PUBLIC_VERIFIER: '/trace',
 };
 
+// Halaman login untuk semua role internal.
 export const LoginPage = () => {
   const { login, loading } = useAuth();
   const navigate = useNavigate();
@@ -19,6 +21,7 @@ export const LoginPage = () => {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
 
+  // Submit form login dan simpan error jika gagal.
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
     setError('');

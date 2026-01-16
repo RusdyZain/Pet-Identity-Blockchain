@@ -1,3 +1,4 @@
+// Error kustom untuk membawa status HTTP.
 export class AppError extends Error {
   statusCode: number;
 
@@ -7,6 +8,7 @@ export class AppError extends Error {
   }
 }
 
+// Helper validasi role; lempar 403 jika tidak sesuai.
 export const assertRole = (role: string, allowed: string[]) => {
   if (!allowed.includes(role)) {
     throw new AppError("Forbidden", 403);

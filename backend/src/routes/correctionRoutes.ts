@@ -8,6 +8,7 @@ import { authenticate, authorize } from "../middlewares/authMiddleware";
 
 const router = Router();
 
+// Route untuk review koreksi data.
 router.get(
   "/corrections",
   authenticate(),

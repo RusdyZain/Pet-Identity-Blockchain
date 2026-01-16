@@ -3,11 +3,13 @@ import { prisma } from "../config/prisma";
 import { AppError } from "../utils/errors";
 import { createNotification } from "./notificationService";
 
+// Status yang diizinkan saat review catatan medis.
 const REVIEWABLE_MEDICAL_STATUS: MedicalRecordStatus[] = [
   MedicalRecordStatus.VERIFIED,
   MedicalRecordStatus.REJECTED,
 ];
 
+// Buat catatan medis baru dengan status PENDING.
 export const createMedicalRecord = async (params: {
   petId: number;
   clinicId: number;
@@ -40,6 +42,7 @@ export const createMedicalRecord = async (params: {
   });
 };
 
+// List catatan medis untuk satu hewan, dengan validasi akses.
 export const listMedicalRecords = async (
   petId: number,
   user: Express.UserContext
@@ -60,6 +63,7 @@ export const listMedicalRecords = async (
   });
 };
 
+// List catatan PENDING khusus klinik yang bersangkutan.
 export const listPendingRecordsForClinic = async (clinicId: number) => {
   return prisma.medicalRecord.findMany({
     where: { clinicId, status: MedicalRecordStatus.PENDING },
@@ -70,6 +74,7 @@ export const listPendingRecordsForClinic = async (clinicId: number) => {
   });
 };
 
+// Verifikasi atau tolak catatan medis yang masih PENDING.
 export const verifyMedicalRecord = async (
   recordId: number,
   reviewerId: number,

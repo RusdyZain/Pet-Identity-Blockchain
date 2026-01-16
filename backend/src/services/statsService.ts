@@ -1,5 +1,6 @@
 import { prisma } from "../config/prisma";
 
+// Ringkasan statistik admin untuk dashboard.
 export const getAdminSummary = async () => {
   const [totalPets, totalMedicalRecords, totalTransfers] = await Promise.all([
     prisma.pet.count(),

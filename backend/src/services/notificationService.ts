@@ -1,6 +1,7 @@
 import { prisma } from "../config/prisma";
 import { AppError } from "../utils/errors";
 
+// Buat notifikasi baru untuk user.
 export const createNotification = async (params: {
   userId: number;
   title: string;
@@ -15,6 +16,7 @@ export const createNotification = async (params: {
   });
 };
 
+// Ambil daftar notifikasi user, terbaru di atas.
 export const listNotifications = async (userId: number) => {
   return prisma.notification.findMany({
     where: { userId },
@@ -22,6 +24,7 @@ export const listNotifications = async (userId: number) => {
   });
 };
 
+// Tandai notifikasi sebagai sudah dibaca.
 export const markNotificationAsRead = async (
   notificationId: number,
   userId: number

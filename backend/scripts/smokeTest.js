@@ -3,9 +3,11 @@ const path = require('path');
 const { ethers } = require('ethers');
 require('dotenv').config();
 
+// Script sederhana untuk memastikan kontrak bisa diakses.
 async function main() {
   const { BLOCKCHAIN_RPC_URL, BLOCKCHAIN_PRIVATE_KEY, PET_IDENTITY_ADDRESS } = process.env;
 
+  // Validasi env wajib sebelum konek ke blockchain.
   if (!BLOCKCHAIN_RPC_URL) {
     throw new Error('Missing BLOCKCHAIN_RPC_URL in environment variables.');
   }
@@ -19,6 +21,7 @@ async function main() {
   const provider = new ethers.JsonRpcProvider(BLOCKCHAIN_RPC_URL);
   const wallet = new ethers.Wallet(BLOCKCHAIN_PRIVATE_KEY, provider);
 
+  // Baca ABI kontrak hasil compile.
   const artifactPath = path.join(
     __dirname,
     '..',
@@ -31,6 +34,7 @@ async function main() {
   const artifact = JSON.parse(fs.readFileSync(artifactPath, 'utf8'));
   const contract = new ethers.Contract(PET_IDENTITY_ADDRESS, artifact.abi, wallet);
 
+  // Uji akses sederhana ke kontrak.
   console.log('Running smoke test as wallet:', wallet.address);
   const nextPetId = await contract.nextPetId();
   console.log('Contract reachable. Current nextPetId:', nextPetId.toString());

@@ -4,6 +4,7 @@ import type { UserRole } from '../../types';
 
 type NavLink = { label: string; to: string; description?: string };
 
+// Navigasi sidebar berdasarkan role pengguna.
 const navConfig: Record<UserRole, NavLink[]> = {
   OWNER: [
     { label: 'Dashboard', to: '/owner/dashboard', description: 'Ringkasan hewan & vaksin' },
@@ -20,12 +21,14 @@ const navConfig: Record<UserRole, NavLink[]> = {
   PUBLIC_VERIFIER: [],
 };
 
+// Layout utama untuk area dashboard (owner, clinic, admin).
 export const DashboardLayout = () => {
   const { user, logout } = useAuth();
   const location = useLocation();
 
   if (!user) return null;
 
+  // Ambil daftar menu sesuai role yang sedang login.
   const links = navConfig[user.role] ?? [];
 
   return (
@@ -45,6 +48,7 @@ export const DashboardLayout = () => {
           </div>
           <nav className="mt-6 space-y-3">
             {links.map((link) => {
+              // Tandai menu aktif sesuai path saat ini.
               const active = location.pathname === link.to;
               return (
                 <Link

@@ -9,6 +9,7 @@ import { SelectField } from '../../components/forms/SelectField';
 import { PageHeader } from '../../components/common/PageHeader';
 import { Loader } from '../../components/common/Loader';
 
+// Daftar field yang bisa diajukan koreksinya.
 const fieldOptions = [
   { label: 'Nama', value: 'name', key: 'name' as const },
   { label: 'Jenis', value: 'species', key: 'species' as const },
@@ -18,6 +19,7 @@ const fieldOptions = [
   { label: 'Ciri Fisik', value: 'physical_mark', key: 'physicalMark' as const },
 ];
 
+// Form pengajuan koreksi data hewan oleh pemilik.
 export const OwnerCorrectionForm = () => {
   const { id } = useParams<{ id: string }>();
   const [pet, setPet] = useState<Pet | null>(null);
@@ -28,6 +30,7 @@ export const OwnerCorrectionForm = () => {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
 
+  // Ambil data hewan agar nilai saat ini bisa ditampilkan.
   useEffect(() => {
     const loadPet = async () => {
       if (!id) return;
@@ -45,6 +48,7 @@ export const OwnerCorrectionForm = () => {
     loadPet();
   }, [id]);
 
+  // Hitung nilai saat ini berdasarkan field yang dipilih.
   const currentValue = useMemo(() => {
     if (!pet) return '-';
 
@@ -58,6 +62,7 @@ export const OwnerCorrectionForm = () => {
     return value ?? '-';
   }, [field, pet]);
 
+  // Kirim permintaan koreksi ke API.
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
     if (!id) return;

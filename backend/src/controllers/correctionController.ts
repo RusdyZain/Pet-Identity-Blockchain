@@ -6,6 +6,7 @@ import {
 import { AppError } from "../utils/errors";
 import { CorrectionStatus } from "@prisma/client";
 
+// Handler list koreksi data.
 export const listCorrectionsController = async (
   req: Request,
   res: Response,
@@ -21,6 +22,7 @@ export const listCorrectionsController = async (
   }
 };
 
+// Handler review koreksi (approve/reject).
 export const reviewCorrectionController = async (
   req: Request,
   res: Response,

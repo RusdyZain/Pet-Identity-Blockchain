@@ -8,6 +8,7 @@ import {
 
 const router = Router();
 
+// Helper konversi tanggal ke UNIX timestamp (detik).
 const toUnixTime = (value: string | number) => {
   if (typeof value === "number" && Number.isFinite(value)) {
     return Math.floor(value);
@@ -19,6 +20,7 @@ const toUnixTime = (value: string | number) => {
   return Math.floor(date.getTime() / 1000);
 };
 
+// Ubah BigInt agar JSON.stringify aman.
 const serializeBigInt = (value: unknown): unknown => {
   if (typeof value === "bigint") {
     return value.toString();
@@ -34,6 +36,7 @@ const serializeBigInt = (value: unknown): unknown => {
   return value;
 };
 
+// Ambil pesan error paling relevan dari error ethers.
 const getBlockchainErrorMessage = (error: any): string | undefined => {
   if (!error) {
     return undefined;
@@ -52,16 +55,19 @@ const getBlockchainErrorMessage = (error: any): string | undefined => {
   );
 };
 
+// Deteksi error "pet tidak ada" dari pesan blockchain.
 const isPetMissingError = (error: any): boolean => {
   const message = getBlockchainErrorMessage(error);
   return typeof message === "string" && message.toLowerCase().includes("pet does not exist");
 };
 
+// Deteksi error akses klinik dari pesan blockchain.
 const isClinicAccessError = (error: any): boolean => {
   const message = getBlockchainErrorMessage(error);
   return typeof message === "string" && message.toLowerCase().includes("caller is not clinic");
 };
 
+// Endpoint debug untuk register pet di kontrak.
 router.post("/debug/register-pet", async (req: Request, res: Response) => {
   try {
     console.log("[debug/register-pet] payload", req.body);
@@ -83,6 +89,7 @@ router.post("/debug/register-pet", async (req: Request, res: Response) => {
   }
 });
 
+// Endpoint debug untuk mengambil data pet di kontrak.
 router.get("/debug/pet/:id", async (req: Request, res: Response) => {
   try {
     const petId = Number(req.params.id);
@@ -106,6 +113,7 @@ router.get("/debug/pet/:id", async (req: Request, res: Response) => {
 router.post(
   "/debug/add-medical-record",
   async (req: Request, res: Response) => {
+    // Endpoint debug untuk menambah catatan medis di kontrak.
     try {
       const { petId, vaccineType, batchNumber, givenAt } = req.body;
       const givenAtTs = toUnixTime(givenAt);
@@ -133,6 +141,7 @@ router.post(
   }
 );
 
+// Endpoint debug untuk mengambil seluruh catatan medis di kontrak.
 router.get("/debug/records/:petId", async (req: Request, res: Response) => {
   try {
     const petId = Number(req.params.petId);
@@ -155,6 +164,6 @@ router.get("/debug/records/:petId", async (req: Request, res: Response) => {
 
 export default router;
 
-// Usage example:
+// Contoh penggunaan:
 // import debugBlockchainRouter from './routes/debugBlockchain';
 // app.use('/api', debugBlockchainRouter);

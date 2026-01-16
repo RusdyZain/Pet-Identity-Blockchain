@@ -4,8 +4,10 @@ import { AppError } from "../utils/errors";
 import { hashPassword, comparePassword } from "../utils/password";
 import { signJwt } from "../utils/jwt";
 
+// Role yang diizinkan untuk daftar mandiri.
 const SELF_REGISTER_ROLES: UserRole[] = [UserRole.OWNER, UserRole.CLINIC];
 
+// Registrasi user baru (hanya OWNER/CLINIC).
 export const registerUser = async (params: {
   name: string;
   email: string;
@@ -37,6 +39,7 @@ export const registerUser = async (params: {
   return user;
 };
 
+// Login user dan hasilkan token + data profil.
 export const loginUser = async (params: {
   email: string;
   password: string;

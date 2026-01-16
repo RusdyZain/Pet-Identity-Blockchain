@@ -9,17 +9,20 @@ type Summary = {
   totalTransfers: number;
 };
 
+// Nilai fallback bila API gagal mengembalikan data.
 const fallbackSummary: Summary = {
   totalPets: 0,
   totalMedicalRecords: 0,
   totalTransfers: 0,
 };
 
+// Dashboard admin untuk ringkasan statistik global.
 export const AdminDashboard = () => {
   const [summary, setSummary] = useState<Summary>(fallbackSummary);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
+  // Ambil statistik admin sekali saat halaman dimuat.
   useEffect(() => {
     const fetchSummary = async () => {
       setLoading(true);

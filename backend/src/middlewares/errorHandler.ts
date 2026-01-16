@@ -1,7 +1,7 @@
 import { NextFunction, Request, Response } from "express";
 import { AppError } from "../utils/errors";
 
-// Generic error handler to normalize responses
+// Handler error global untuk menyamakan format response.
 export const errorHandler = (
   err: Error,
   _req: Request,

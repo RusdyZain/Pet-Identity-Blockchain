@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from "express";
 import { getTraceByPublicId } from "../services/petService";
 import { AppError } from "../utils/errors";
 
+// Handler trace publik berdasarkan publicId.
 export const traceController = async (
   req: Request,
   res: Response,

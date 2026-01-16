@@ -5,6 +5,7 @@ import type { MedicalRecord, Pet } from '../../types';
 import { Loader } from '../../components/common/Loader';
 import { PageHeader } from '../../components/common/PageHeader';
 
+// Detail hewan untuk klinik dengan akses tambah catatan vaksin.
 export const ClinicPetDetail = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -13,6 +14,7 @@ export const ClinicPetDetail = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
+  // Ambil detail hewan dan seluruh catatan vaksin.
   useEffect(() => {
     const fetchData = async () => {
       if (!id) return;

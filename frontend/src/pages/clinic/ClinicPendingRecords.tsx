@@ -4,11 +4,13 @@ import type { MedicalRecord } from '../../types';
 import { Loader } from '../../components/common/Loader';
 import { PageHeader } from '../../components/common/PageHeader';
 
+// Halaman untuk memverifikasi catatan vaksin yang masih pending.
 export const ClinicPendingRecords = () => {
   const [records, setRecords] = useState<MedicalRecord[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
+  // Ambil daftar catatan yang menunggu verifikasi.
   const fetchPending = async () => {
     setLoading(true);
     setError('');
@@ -27,6 +29,7 @@ export const ClinicPendingRecords = () => {
     fetchPending();
   }, []);
 
+  // Update status verifikasi catatan.
   const handleUpdate = async (id: number, status: 'VERIFIED' | 'REJECTED') => {
     await medicalRecordApi.verify(String(id), status);
     fetchPending();

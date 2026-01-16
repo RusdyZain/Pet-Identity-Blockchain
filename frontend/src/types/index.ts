@@ -1,5 +1,7 @@
+// Role akses yang menentukan halaman dashboard yang boleh dibuka pengguna.
 export type UserRole = 'OWNER' | 'CLINIC' | 'ADMIN' | 'PUBLIC_VERIFIER';
 
+// Data user yang disimpan di front-end setelah login.
 export interface AuthUser {
   id: number;
   name: string;
@@ -7,11 +9,13 @@ export interface AuthUser {
   role: UserRole;
 }
 
+// Bentuk respons login yang membawa token dan profil pengguna.
 export interface AuthResponse {
   token: string;
   user: AuthUser;
 }
 
+// Data utama hewan yang dipakai di dashboard pemilik/klinik.
 export interface Pet {
   id: number;
   publicId: string;
@@ -25,6 +29,7 @@ export interface Pet {
   status: 'REGISTERED' | 'TRANSFER_PENDING' | 'INACTIVE';
 }
 
+// Catatan vaksinasi/medis untuk satu hewan.
 export interface MedicalRecord {
   id: number;
   vaccineType: string;
@@ -37,6 +42,7 @@ export interface MedicalRecord {
   evidenceUrl?: string | null;
 }
 
+// Permintaan koreksi data dari pemilik hewan.
 export interface CorrectionRequest {
   id: number;
   petId: number;
@@ -47,6 +53,7 @@ export interface CorrectionRequest {
   reason?: string | null;
 }
 
+// Riwayat perpindahan kepemilikan hewan.
 export interface OwnershipHistory {
   id: number;
   fromOwner: { name: string };
@@ -54,6 +61,7 @@ export interface OwnershipHistory {
   transferredAt: string | null;
 }
 
+// Notifikasi yang dikirim sistem kepada user.
 export interface Notification {
   id: number;
   title: string;
@@ -62,6 +70,7 @@ export interface Notification {
   createdAt: string;
 }
 
+// Data trace publik untuk verifikasi identitas hewan.
 export interface TraceResult {
   name: string;
   species: string;

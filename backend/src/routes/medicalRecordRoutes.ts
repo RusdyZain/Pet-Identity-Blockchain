@@ -10,6 +10,7 @@ import { authenticate, authorize } from "../middlewares/authMiddleware";
 
 const router = Router();
 
+// Route untuk catatan medis/vaksin.
 router.post(
   "/pets/:petId/medical-records",
   authenticate(),

@@ -5,6 +5,7 @@ import { medicalRecordApi } from '../../services/apiClient';
 import { TextField } from '../../components/forms/TextField';
 import { PageHeader } from '../../components/common/PageHeader';
 
+// Form penambahan catatan vaksin oleh klinik.
 export const ClinicMedicalRecordForm = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -19,12 +20,14 @@ export const ClinicMedicalRecordForm = () => {
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
 
+  // Helper untuk update field form.
   const handleChange =
     (field: keyof typeof form) =>
     (event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
       setForm((prev) => ({ ...prev, [field]: event.target.value }));
     };
 
+  // Submit catatan medis baru ke API.
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
     if (!id) return;

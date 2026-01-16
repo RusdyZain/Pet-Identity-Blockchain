@@ -5,6 +5,7 @@ import { adminSummaryController } from "../controllers/adminController";
 
 const router = Router();
 
+// Route admin untuk ringkasan statistik.
 router.get(
   "/admin/summary",
   authenticate(),

@@ -1,5 +1,6 @@
 import { Outlet } from 'react-router-dom';
 
+// Layout halaman publik seperti login dan trace.
 export const PublicLayout = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-mist via-white to-sky-50 px-4 py-10">
@@ -23,6 +24,7 @@ export const PublicLayout = () => {
             </p>
           </div>
           <div className="mt-8 grid gap-6 text-sm">
+            {/* Daftar fitur utama untuk edukasi pengguna baru */}
             {[
               'Audit trail vaksin otomatis & terenkripsi',
               'Monitoring koreksi data & transfer kepemilikan',

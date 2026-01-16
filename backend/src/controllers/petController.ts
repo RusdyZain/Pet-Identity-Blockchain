@@ -12,6 +12,7 @@ import {
 import { AppError } from "../utils/errors";
 import { registerPet } from "../blockchain/petIdentityClient";
 
+// Handler pembuatan hewan baru (DB + blockchain).
 export const createPetController = async (
   req: Request,
   res: Response,
@@ -92,6 +93,7 @@ export const createPetController = async (
   }
 };
 
+// Handler list hewan untuk dashboard.
 export const listPetsController = async (
   req: Request,
   res: Response,
@@ -110,6 +112,7 @@ export const listPetsController = async (
   }
 };
 
+// Handler detail hewan berdasarkan id.
 export const getPetController = async (
   req: Request,
   res: Response,
@@ -128,6 +131,7 @@ export const getPetController = async (
   }
 };
 
+// Handler riwayat kepemilikan hewan.
 export const ownershipHistoryController = async (
   req: Request,
   res: Response,
@@ -146,6 +150,7 @@ export const ownershipHistoryController = async (
   }
 };
 
+// Handler pengajuan transfer kepemilikan.
 export const initiateTransferController = async (
   req: Request,
   res: Response,
@@ -167,6 +172,7 @@ export const initiateTransferController = async (
   }
 };
 
+// Handler penerimaan transfer kepemilikan.
 export const acceptTransferController = async (
   req: Request,
   res: Response,
@@ -185,6 +191,7 @@ export const acceptTransferController = async (
   }
 };
 
+// Handler permintaan koreksi data oleh pemilik.
 export const createCorrectionController = async (
   req: Request,
   res: Response,

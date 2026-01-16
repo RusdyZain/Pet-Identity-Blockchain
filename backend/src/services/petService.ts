@@ -14,11 +14,13 @@ import {
   CorrectionField,
 } from "./correctionFields";
 
+// Buat publicId singkat untuk hewan baru.
 export const generatePublicId = () => {
   const [segment] = randomUUID().split("-");
   return `PET-${(segment || randomUUID()).slice(0, 8).toUpperCase()}`;
 };
 
+// Sembunyikan sebagian nama pemilik untuk tampilan publik.
 const maskOwnerName = (name: string) => {
   if (!name) return "";
   const parts = name.split(" ").filter(Boolean);
@@ -30,12 +32,14 @@ const maskOwnerName = (name: string) => {
   return `${first} ${initials}`.trim();
 };
 
+// Hitung umur berdasarkan tanggal lahir.
 const calculateAge = (birthDate: Date) => {
   const diff = Date.now() - birthDate.getTime();
   const ageDate = new Date(diff);
   return Math.abs(ageDate.getUTCFullYear() - 1970);
 };
 
+// Simpan hewan baru ke database.
 export const createPet = async (
   ownerId: number,
   data: {
@@ -69,6 +73,7 @@ export const createPet = async (
   return pet;
 };
 
+// Daftar hewan yang bisa dilihat user (tergantung role).
 export const listPets = async (
   user: Express.UserContext,
   query?: { search?: string }
@@ -89,6 +94,7 @@ export const listPets = async (
   });
 };
 
+// Ambil detail hewan dengan validasi akses.
 export const getPetById = async (petId: number, user: Express.UserContext) => {
   const pet = await prisma.pet.findUnique({
     where: { id: petId },
@@ -103,6 +109,7 @@ export const getPetById = async (petId: number, user: Express.UserContext) => {
   return pet;
 };
 
+// Ambil riwayat transfer untuk hewan tertentu.
 export const getOwnershipHistory = async (
   petId: number,
   user: Express.UserContext
@@ -127,6 +134,7 @@ export const getOwnershipHistory = async (
   });
 };
 
+// Mulai proses transfer kepemilikan ke pemilik baru.
 export const initiateTransfer = async (
   petId: number,
   currentOwnerId: number,
@@ -183,6 +191,7 @@ export const initiateTransfer = async (
   return { message: "Transfer request created" };
 };
 
+// Terima transfer kepemilikan oleh pemilik baru.
 export const acceptTransfer = async (petId: number, newOwnerId: number) => {
   const transfer = await prisma.ownershipHistory.findFirst({
     where: { petId, toOwnerId: newOwnerId, transferredAt: null },
@@ -219,6 +228,7 @@ export const acceptTransfer = async (petId: number, newOwnerId: number) => {
   return updatedPet;
 };
 
+// Data trace publik berdasarkan publicId (tanpa menampilkan nama lengkap pemilik).
 export const getTraceByPublicId = async (publicId: string) => {
   const pet = await prisma.pet.findUnique({
     where: { publicId },
@@ -250,6 +260,7 @@ export const getTraceByPublicId = async (publicId: string) => {
   };
 };
 
+// Ajukan koreksi data hewan dari pemilik.
 export const createCorrectionRequest = async (params: {
   petId: number;
   ownerId: number;

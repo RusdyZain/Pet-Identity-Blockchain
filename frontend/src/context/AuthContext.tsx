@@ -10,11 +10,15 @@ interface AuthContextValue {
   logout: () => void;
 }
 
+// Context untuk menyimpan status autentikasi global.
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
+// Kunci localStorage agar sesi login tetap ada setelah refresh.
 const USER_KEY = 'petid_user';
 
+// Provider membungkus aplikasi dan menyimpan state user.
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
+  // Ambil user dari localStorage saat inisialisasi pertama.
   const [user, setUser] = useState<AuthUser | undefined>(() => {
     const raw = localStorage.getItem(USER_KEY);
     if (!raw) return undefined;
@@ -27,6 +31,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   });
   const [loading, setLoading] = useState(false);
 
+  // Sinkronkan perubahan user ke localStorage.
   useEffect(() => {
     if (user) {
       localStorage.setItem(USER_KEY, JSON.stringify(user));
@@ -35,6 +40,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     }
   }, [user]);
 
+  // Proses login yang mengaktifkan loading dan menyimpan user.
   const handleLogin = async (email: string, password: string) => {
     setLoading(true);
     try {
@@ -46,11 +52,13 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     }
   };
 
+  // Proses logout menghapus token dan reset state user.
   const logout = () => {
     authApi.logout();
     setUser(undefined);
   };
 
+  // Memoisasi value agar tidak memicu render ulang berlebihan.
   const value = useMemo(
     () => ({
       user,
@@ -65,6 +73,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
 
+// Hook helper agar penggunaan context konsisten di seluruh komponen.
 export const useAuth = () => {
   const context = useContext(AuthContext);
   if (!context) {

@@ -8,6 +8,7 @@ import { authenticate, authorize } from "../middlewares/authMiddleware";
 
 const router = Router();
 
+// Route untuk notifikasi user.
 router.get(
   "/notifications",
   authenticate(),
