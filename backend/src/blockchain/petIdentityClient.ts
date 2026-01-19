@@ -3,6 +3,7 @@ import {
   Contract,
   JsonRpcProvider,
   Wallet,
+  Signer,
   ethers,
   Log,
   ContractTransactionResponse,
@@ -66,6 +67,10 @@ type PetIdentityContract = Contract & {
     recordIndex: number,
     verified: boolean
   ) => Promise<ContractTransactionResponse>;
+  clinics: (clinic: string) => Promise<boolean>;
+  addClinic: (clinic: string) => Promise<ContractTransactionResponse>;
+  contractOwner: () => Promise<string>;
+  getPetIdByPublicId: (publicId: string) => Promise<bigint>;
   transferOwnership: (
     petId: number,
     newOwner: string
@@ -80,6 +85,52 @@ const contract: PetIdentityContract = new Contract(
   artifactJson.abi,
   wallet
 ) as PetIdentityContract;
+
+const LOCAL_CHAIN_IDS = new Set([1337, 31337]);
+let cachedChainId: number | null = null;
+let clinicAccessEnsured = false;
+
+const getChainId = async (): Promise<number> => {
+  if (cachedChainId !== null) {
+    return cachedChainId;
+  }
+  const network = await provider.getNetwork();
+  cachedChainId = Number(network.chainId);
+  return cachedChainId;
+};
+
+export const isLocalBlockchain = async (): Promise<boolean> => {
+  const chainId = await getChainId();
+  return LOCAL_CHAIN_IDS.has(chainId);
+};
+
+const ensureClinicAccess = async (): Promise<void> => {
+  if (clinicAccessEnsured) {
+    return;
+  }
+  if (!(await isLocalBlockchain())) {
+    return;
+  }
+
+  const isClinic = await contract.clinics(wallet.address);
+  if (isClinic) {
+    clinicAccessEnsured = true;
+    return;
+  }
+
+  const owner = await contract.contractOwner();
+  const ownerSigner: Signer =
+    owner.toLowerCase() === wallet.address.toLowerCase()
+      ? wallet
+      : await provider.getSigner(owner);
+  const ownerContract = contract.connect(ownerSigner) as PetIdentityContract;
+  const tx = await ownerContract.addClinic(wallet.address);
+  const receipt = await tx.wait();
+  if (!receipt) {
+    throw new Error("Failed to whitelist clinic wallet on local chain");
+  }
+  clinicAccessEnsured = true;
+};
 
 // Daftarkan hewan di kontrak dan kembalikan receipt + petId on-chain.
 export async function registerPet(
@@ -137,6 +188,7 @@ export async function updatePetBasicData(
   breed: string,
   birthDate: number
 ): Promise<ContractTransactionReceipt> {
+  await ensureClinicAccess();
   const tx = await contract.updatePetBasicData(
     petId,
     name,
@@ -158,6 +210,7 @@ export async function addMedicalRecord(
   batchNumber: string,
   givenAt: number
 ): Promise<ContractTransactionReceipt> {
+  await ensureClinicAccess();
   const tx = await contract.addMedicalRecord(
     petId,
     vaccineType,
@@ -177,6 +230,7 @@ export async function verifyMedicalRecord(
   recordIndex: number,
   verified: boolean
 ): Promise<ContractTransactionReceipt> {
+  await ensureClinicAccess();
   const tx = await contract.verifyMedicalRecord(petId, recordIndex, verified);
   const receipt = await tx.wait();
   if (!receipt) {
@@ -206,6 +260,10 @@ export async function getPet(petId: number): Promise<any> {
 // Ambil seluruh catatan medis dari kontrak.
 export async function getMedicalRecords(petId: number): Promise<any[]> {
   return contract.getMedicalRecords(petId);
+}
+
+export async function getPetIdByPublicId(publicId: string): Promise<bigint> {
+  return contract.getPetIdByPublicId(publicId);
 }
 
 // Contoh penggunaan di handler Express.

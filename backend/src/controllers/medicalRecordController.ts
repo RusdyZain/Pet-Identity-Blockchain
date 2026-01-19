@@ -9,6 +9,7 @@ import { AppError } from "../utils/errors";
 import { MedicalRecordStatus } from "@prisma/client";
 import { addMedicalRecord } from "../blockchain/petIdentityClient";
 import { prisma } from "../config/prisma";
+import { resolveOnChainPetId } from "../blockchain/petIdentityResolver";
 
 // Handler pembuatan catatan medis (DB + blockchain).
 export const createMedicalRecordController = async (
@@ -25,12 +26,20 @@ export const createMedicalRecordController = async (
       throw new AppError("Missing required fields", 400);
     }
 
-    const pet = await prisma.pet.findUnique({ where: { id: petId } });
+    const pet = await prisma.pet.findUnique({
+      where: { id: petId },
+      select: {
+        id: true,
+        publicId: true,
+        onChainPetId: true,
+        name: true,
+        species: true,
+        breed: true,
+        birthDate: true,
+      },
+    });
     if (!pet) {
       throw new AppError("Pet not found", 404);
-    }
-    if (!pet.onChainPetId) {
-      throw new AppError("Pet is not registered on blockchain", 400);
     }
 
     const givenAt = new Date(given_at);
@@ -38,6 +47,7 @@ export const createMedicalRecordController = async (
       throw new AppError("Tanggal pemberian tidak valid", 400);
     }
 
+    const onChainPetId = await resolveOnChainPetId(pet);
     const record = await createMedicalRecord({
       petId,
       clinicId: req.user.id,
@@ -50,7 +60,7 @@ export const createMedicalRecordController = async (
 
     try {
       const receipt = await addMedicalRecord(
-        Number(pet.onChainPetId),
+        onChainPetId,
         record.vaccineType,
         record.batchNumber,
         Math.floor(givenAt.getTime() / 1000)
