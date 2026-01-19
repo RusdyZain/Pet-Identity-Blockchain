@@ -5,6 +5,8 @@ import {
 } from "../services/correctionService";
 import { AppError } from "../utils/errors";
 import { CorrectionStatus } from "@prisma/client";
+import { getBackendWalletAddress } from "../blockchain/petIdentityClient";
+import { ensureUserWalletAddress } from "../services/userWalletService";
 
 // Handler list koreksi data.
 export const listCorrectionsController = async (
@@ -33,6 +35,9 @@ export const reviewCorrectionController = async (
     const correctionId = Number(req.params.id);
     const { status, reason } = req.body;
     if (!status) throw new AppError("Status wajib diisi", 400);
+
+    const walletAddress = getBackendWalletAddress();
+    await ensureUserWalletAddress(req.user.id, walletAddress);
 
     const updated = await reviewCorrection({
       correctionId,

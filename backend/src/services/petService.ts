@@ -13,6 +13,7 @@ import {
   getPetFieldValue,
   CorrectionField,
 } from "./correctionFields";
+import { buildCorrectionDataHash } from "../utils/dataHash";
 
 // Buat publicId singkat untuk hewan baru.
 export const generatePublicId = () => {
@@ -45,6 +46,8 @@ export const createPet = async (
   data: {
     publicId?: string;
     onChainPetId?: number | null;
+    dataHash: string;
+    txHash: string;
     name: string;
     species: string;
     breed: string;
@@ -59,6 +62,8 @@ export const createPet = async (
     data: {
       publicId,
       onChainPetId: data.onChainPetId ?? null,
+      dataHash: data.dataHash,
+      txHash: data.txHash,
       name: data.name,
       species: data.species,
       breed: data.breed,
@@ -278,11 +283,20 @@ export const createCorrectionRequest = async (params: {
   }
 
   const oldValue = getPetFieldValue(pet, params.fieldName as CorrectionField);
+  const dataHash = buildCorrectionDataHash({
+    petId: params.petId,
+    ownerId: params.ownerId,
+    fieldName: params.fieldName,
+    oldValue: `${oldValue ?? ""}`,
+    newValue: params.newValue,
+    reason: params.reason ?? null,
+  });
 
   return prisma.correctionRequest.create({
     data: {
       petId: params.petId,
       ownerId: params.ownerId,
+      dataHash,
       fieldName: params.fieldName,
       oldValue: `${oldValue ?? ""}`,
       newValue: params.newValue,

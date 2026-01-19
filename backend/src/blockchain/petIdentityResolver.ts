@@ -2,19 +2,23 @@ import { prisma } from "../config/prisma";
 import { AppError } from "../utils/errors";
 import {
   getPet,
-  getPetIdByPublicId,
+  getPetIdByHash,
   isLocalBlockchain,
   registerPet,
 } from "./petIdentityClient";
+import { buildPetDataHash } from "../utils/dataHash";
 
 export type PetChainPayload = {
   id: number;
   publicId: string;
   onChainPetId: number | null;
+  dataHash?: string | null;
   name: string;
   species: string;
   breed: string;
   birthDate: Date;
+  color: string;
+  physicalMark: string;
 };
 
 export const getBlockchainErrorMessage = (
@@ -47,18 +51,18 @@ const isPetMissingError = (error: unknown): boolean => {
   return lower.includes("pet does not exist") || lower.includes("pet not found");
 };
 
-const isPublicIdAlreadyUsedError = (error: unknown): boolean => {
+const isDataHashAlreadyUsedError = (error: unknown): boolean => {
   const message = getBlockchainErrorMessage(error);
   return typeof message === "string"
-    ? message.toLowerCase().includes("publicid already used")
+    ? message.toLowerCase().includes("datahash already used")
     : false;
 };
 
-const tryGetPetIdByPublicId = async (
-  publicId: string
+const tryGetPetIdByHash = async (
+  dataHash: string
 ): Promise<number | null> => {
   try {
-    const petId = await getPetIdByPublicId(publicId);
+    const petId = await getPetIdByHash(dataHash);
     return Number(petId);
   } catch (error) {
     if (isPetMissingError(error)) {
@@ -92,37 +96,49 @@ export const resolveOnChainPetId = async (
     throw new AppError("Pet is not registered on blockchain", 400);
   }
 
-  const existingId = await tryGetPetIdByPublicId(pet.publicId);
+  const resolvedDataHash =
+    typeof pet.dataHash === "string" && pet.dataHash.length > 0
+      ? pet.dataHash
+      : buildPetDataHash({
+          publicId: pet.publicId,
+          name: pet.name,
+          species: pet.species,
+          breed: pet.breed,
+          birthDate: pet.birthDate,
+          color: pet.color,
+          physicalMark: pet.physicalMark,
+        });
+
+  const existingId = await tryGetPetIdByHash(resolvedDataHash);
   if (existingId !== null) {
     await prisma.pet.update({
       where: { id: pet.id },
-      data: { onChainPetId: existingId },
+      data: { onChainPetId: existingId, dataHash: resolvedDataHash },
     });
     return existingId;
   }
 
-  const birthDateTimestamp = Math.floor(pet.birthDate.getTime() / 1000);
   try {
-    const { petId: newOnChainPetId } = await registerPet(
-      pet.publicId,
-      pet.name,
-      pet.species,
-      pet.breed,
-      birthDateTimestamp
+    const { petId: newOnChainPetId, receipt } = await registerPet(
+      resolvedDataHash
     );
     const resolvedId = Number(newOnChainPetId);
     await prisma.pet.update({
       where: { id: pet.id },
-      data: { onChainPetId: resolvedId },
+      data: {
+        onChainPetId: resolvedId,
+        dataHash: resolvedDataHash,
+        txHash: receipt.hash,
+      },
     });
     return resolvedId;
   } catch (error) {
-    if (isPublicIdAlreadyUsedError(error)) {
-      const fallbackId = await tryGetPetIdByPublicId(pet.publicId);
+    if (isDataHashAlreadyUsedError(error)) {
+      const fallbackId = await tryGetPetIdByHash(resolvedDataHash);
       if (fallbackId !== null) {
         await prisma.pet.update({
           where: { id: pet.id },
-          data: { onChainPetId: fallbackId },
+          data: { onChainPetId: fallbackId, dataHash: resolvedDataHash },
         });
         return fallbackId;
       }

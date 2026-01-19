@@ -4,7 +4,6 @@ import {
   JsonRpcProvider,
   Wallet,
   Signer,
-  ethers,
   Log,
   ContractTransactionResponse,
   ContractTransactionReceipt,
@@ -42,35 +41,23 @@ const artifactJson = JSON.parse(fs.readFileSync(artifactPath, "utf-8"));
 
 // Tipe kontrak agar pemanggilan method lebih jelas di TypeScript.
 type PetIdentityContract = Contract & {
-  registerPet: (
-    publicId: string,
-    name: string,
-    species: string,
-    breed: string,
-    birthDate: number
-  ) => Promise<ContractTransactionResponse>;
+  registerPet: (dataHash: string) => Promise<ContractTransactionResponse>;
   updatePetBasicData: (
     petId: number,
-    name: string,
-    species: string,
-    breed: string,
-    birthDate: number
+    dataHash: string
   ) => Promise<ContractTransactionResponse>;
   addMedicalRecord: (
     petId: number,
-    vaccineType: string,
-    batchNumber: string,
-    givenAt: number
+    dataHash: string
   ) => Promise<ContractTransactionResponse>;
   verifyMedicalRecord: (
-    petId: number,
-    recordIndex: number,
-    verified: boolean
+    recordId: number,
+    status: number
   ) => Promise<ContractTransactionResponse>;
   clinics: (clinic: string) => Promise<boolean>;
   addClinic: (clinic: string) => Promise<ContractTransactionResponse>;
   contractOwner: () => Promise<string>;
-  getPetIdByPublicId: (publicId: string) => Promise<bigint>;
+  getPetIdByHash: (dataHash: string) => Promise<bigint>;
   transferOwnership: (
     petId: number,
     newOwner: string
@@ -104,6 +91,8 @@ export const isLocalBlockchain = async (): Promise<boolean> => {
   return LOCAL_CHAIN_IDS.has(chainId);
 };
 
+export const getBackendWalletAddress = () => wallet.address;
+
 const ensureClinicAccess = async (): Promise<void> => {
   if (clinicAccessEnsured) {
     return;
@@ -134,19 +123,9 @@ const ensureClinicAccess = async (): Promise<void> => {
 
 // Daftarkan hewan di kontrak dan kembalikan receipt + petId on-chain.
 export async function registerPet(
-  publicId: string,
-  name: string,
-  species: string,
-  breed: string,
-  birthDate: number
+  dataHash: string
 ): Promise<{ receipt: ContractTransactionReceipt; petId: bigint }> {
-  const tx = await contract.registerPet(
-    publicId,
-    name,
-    species,
-    breed,
-    birthDate
-  );
+  const tx = await contract.registerPet(dataHash);
   const receipt = await tx.wait();
   if (!receipt) {
     throw new Error("Failed to fetch transaction receipt for registerPet");
@@ -183,19 +162,10 @@ export async function registerPet(
 // Update data dasar hewan di kontrak.
 export async function updatePetBasicData(
   petId: number,
-  name: string,
-  species: string,
-  breed: string,
-  birthDate: number
+  dataHash: string
 ): Promise<ContractTransactionReceipt> {
   await ensureClinicAccess();
-  const tx = await contract.updatePetBasicData(
-    petId,
-    name,
-    species,
-    breed,
-    birthDate
-  );
+  const tx = await contract.updatePetBasicData(petId, dataHash);
   const receipt = await tx.wait();
   if (!receipt) {
     throw new Error("Failed to fetch transaction receipt for updatePetBasicData");
@@ -206,32 +176,46 @@ export async function updatePetBasicData(
 // Tambahkan catatan medis ke kontrak.
 export async function addMedicalRecord(
   petId: number,
-  vaccineType: string,
-  batchNumber: string,
-  givenAt: number
-): Promise<ContractTransactionReceipt> {
+  dataHash: string
+): Promise<{ receipt: ContractTransactionReceipt; recordId: bigint }> {
   await ensureClinicAccess();
-  const tx = await contract.addMedicalRecord(
-    petId,
-    vaccineType,
-    batchNumber,
-    givenAt
-  );
+  const tx = await contract.addMedicalRecord(petId, dataHash);
   const receipt = await tx.wait();
   if (!receipt) {
     throw new Error("Failed to fetch transaction receipt for addMedicalRecord");
   }
-  return receipt;
+
+  const eventFragment = contract.interface.getEvent("MedicalRecordAdded");
+  if (!eventFragment) {
+    throw new Error("MedicalRecordAdded event not found in ABI");
+  }
+  const topic = eventFragment.topicHash;
+  const log = receipt.logs.find((entry: Log) => entry.topics?.[0] === topic);
+  if (!log) {
+    throw new Error("MedicalRecordAdded event not found in transaction receipt");
+  }
+  const parsedLog = contract.interface.parseLog(log);
+  if (!parsedLog) {
+    throw new Error("Failed to parse MedicalRecordAdded event log");
+  }
+  const recordId = parsedLog.args?.recordId ?? parsedLog.args?.[0];
+  if (recordId === undefined) {
+    throw new Error("Unable to decode recordId from MedicalRecordAdded event");
+  }
+
+  return {
+    receipt,
+    recordId: BigInt(recordId),
+  };
 }
 
 // Verifikasi catatan medis di kontrak.
 export async function verifyMedicalRecord(
-  petId: number,
-  recordIndex: number,
-  verified: boolean
+  recordId: number,
+  status: number
 ): Promise<ContractTransactionReceipt> {
   await ensureClinicAccess();
-  const tx = await contract.verifyMedicalRecord(petId, recordIndex, verified);
+  const tx = await contract.verifyMedicalRecord(recordId, status);
   const receipt = await tx.wait();
   if (!receipt) {
     throw new Error("Failed to fetch transaction receipt for verifyMedicalRecord");
@@ -262,8 +246,8 @@ export async function getMedicalRecords(petId: number): Promise<any[]> {
   return contract.getMedicalRecords(petId);
 }
 
-export async function getPetIdByPublicId(publicId: string): Promise<bigint> {
-  return contract.getPetIdByPublicId(publicId);
+export async function getPetIdByHash(dataHash: string): Promise<bigint> {
+  return contract.getPetIdByHash(dataHash);
 }
 
 // Contoh penggunaan di handler Express.
@@ -271,8 +255,8 @@ export async function getPetIdByPublicId(publicId: string): Promise<bigint> {
 import { Request, Response } from 'express';
 
 export async function registerPetHandler(req: Request, res: Response) {
-  const { publicId, name, species, breed, birthDate } = req.body;
-  const receipt = await registerPet(publicId, name, species, breed, Number(birthDate));
+  const { dataHash } = req.body;
+  const receipt = await registerPet(dataHash);
   return res.json({ txHash: receipt.hash });
 }
 */

@@ -10,7 +10,12 @@ import {
   generatePublicId,
 } from "../services/petService";
 import { AppError } from "../utils/errors";
-import { registerPet } from "../blockchain/petIdentityClient";
+import {
+  getBackendWalletAddress,
+  registerPet,
+} from "../blockchain/petIdentityClient";
+import { buildPetDataHash } from "../utils/dataHash";
+import { ensureUserWalletAddress } from "../services/userWalletService";
 
 // Handler pembuatan hewan baru (DB + blockchain).
 export const createPetController = async (
@@ -48,23 +53,31 @@ export const createPetController = async (
       throw new AppError("Tanggal lahir tidak valid", 400);
     }
 
-    const birthDateTimestamp = Math.floor(birthDate.getTime() / 1000);
     if (!resolvedPublicId) {
       resolvedPublicId = generatePublicId();
     }
 
+    const dataHash = buildPetDataHash({
+      publicId: resolvedPublicId,
+      name,
+      species,
+      breed,
+      birthDate,
+      color,
+      physicalMark: physical_mark,
+    });
+
     try {
-      const { receipt, petId: onChainPetId } = await registerPet(
-        resolvedPublicId,
-        name,
-        species,
-        breed,
-        birthDateTimestamp
-      );
+      const walletAddress = getBackendWalletAddress();
+      await ensureUserWalletAddress(req.user.id, walletAddress);
+
+      const { receipt, petId: onChainPetId } = await registerPet(dataHash);
 
       const pet = await createPet(req.user.id, {
         publicId: resolvedPublicId,
         onChainPetId: Number(onChainPetId),
+        dataHash,
+        txHash: receipt.hash,
         name,
         species,
         breed,

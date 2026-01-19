@@ -7,9 +7,15 @@ import {
 } from "../services/medicalRecordService";
 import { AppError } from "../utils/errors";
 import { MedicalRecordStatus } from "@prisma/client";
-import { addMedicalRecord } from "../blockchain/petIdentityClient";
+import {
+  addMedicalRecord,
+  getBackendWalletAddress,
+  verifyMedicalRecord as verifyMedicalRecordOnChain,
+} from "../blockchain/petIdentityClient";
 import { prisma } from "../config/prisma";
 import { resolveOnChainPetId } from "../blockchain/petIdentityResolver";
+import { buildMedicalRecordDataHash } from "../utils/dataHash";
+import { ensureUserWalletAddress } from "../services/userWalletService";
 
 // Handler pembuatan catatan medis (DB + blockchain).
 export const createMedicalRecordController = async (
@@ -32,10 +38,13 @@ export const createMedicalRecordController = async (
         id: true,
         publicId: true,
         onChainPetId: true,
+        dataHash: true,
         name: true,
         species: true,
         breed: true,
         birthDate: true,
+        color: true,
+        physicalMark: true,
       },
     });
     if (!pet) {
@@ -48,9 +57,8 @@ export const createMedicalRecordController = async (
     }
 
     const onChainPetId = await resolveOnChainPetId(pet);
-    const record = await createMedicalRecord({
+    const dataHash = buildMedicalRecordDataHash({
       petId,
-      clinicId: req.user.id,
       vaccineType: vaccine_type,
       batchNumber: batch_number,
       givenAt,
@@ -59,16 +67,32 @@ export const createMedicalRecordController = async (
     });
 
     try {
-      const receipt = await addMedicalRecord(
+      const walletAddress = getBackendWalletAddress();
+      await ensureUserWalletAddress(req.user.id, walletAddress);
+
+      const { receipt, recordId: onChainRecordId } = await addMedicalRecord(
         onChainPetId,
-        record.vaccineType,
-        record.batchNumber,
-        Math.floor(givenAt.getTime() / 1000)
+        dataHash
       );
+
+      const record = await createMedicalRecord({
+        petId,
+        clinicId: req.user.id,
+        onChainRecordId: Number(onChainRecordId),
+        dataHash,
+        txHash: receipt.hash,
+        vaccineType: vaccine_type,
+        batchNumber: batch_number,
+        givenAt,
+        notes,
+        evidenceUrl: evidence_url,
+      });
+
       return res.status(201).json({
         record,
         blockchain: {
           txHash: receipt.hash,
+          onChainRecordId: onChainRecordId.toString(),
         },
       });
     } catch (blockchainError: any) {
@@ -130,10 +154,41 @@ export const verifyMedicalRecordController = async (
     const { status } = req.body;
     if (!status) throw new AppError("Status wajib diisi", 400);
 
+    const record = await prisma.medicalRecord.findUnique({
+      where: { id: recordId },
+      select: { onChainRecordId: true },
+    });
+    if (!record) {
+      throw new AppError("Medical record not found", 404);
+    }
+    if (!record.onChainRecordId) {
+      throw new AppError("Medical record not registered on blockchain", 400);
+    }
+
+    const walletAddress = getBackendWalletAddress();
+    await ensureUserWalletAddress(req.user.id, walletAddress);
+
+    const chainStatus =
+      status === MedicalRecordStatus.VERIFIED
+        ? 1
+        : status === MedicalRecordStatus.REJECTED
+        ? 2
+        : 0;
+
+    if (chainStatus === 0) {
+      throw new AppError("Status tidak valid", 400);
+    }
+
+    const receipt = await verifyMedicalRecordOnChain(
+      record.onChainRecordId,
+      chainStatus
+    );
+
     const updated = await verifyMedicalRecord(
       recordId,
       req.user.id,
-      status as MedicalRecordStatus
+      status as MedicalRecordStatus,
+      receipt.hash
     );
     res.json(updated);
   } catch (error) {

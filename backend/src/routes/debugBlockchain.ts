@@ -5,6 +5,10 @@ import {
   addMedicalRecord,
   getMedicalRecords,
 } from "../blockchain/petIdentityClient";
+import {
+  buildMedicalRecordDataHash,
+  buildPetDataHash,
+} from "../utils/dataHash";
 
 const router = Router();
 
@@ -19,6 +23,8 @@ const toUnixTime = (value: string | number) => {
   }
   return Math.floor(date.getTime() / 1000);
 };
+
+const toDate = (value: string | number) => new Date(toUnixTime(value) * 1000);
 
 // Ubah BigInt agar JSON.stringify aman.
 const serializeBigInt = (value: unknown): unknown => {
@@ -71,16 +77,20 @@ const isClinicAccessError = (error: any): boolean => {
 router.post("/debug/register-pet", async (req: Request, res: Response) => {
   try {
     console.log("[debug/register-pet] payload", req.body);
-    const { publicId, name, species, breed, birthDate } = req.body;
-    const birthDateTs = toUnixTime(birthDate);
-    const { receipt } = await registerPet(
+    const { publicId, name, species, breed, birthDate, color, physicalMark } =
+      req.body;
+    const parsedBirthDate = toDate(birthDate);
+    const dataHash = buildPetDataHash({
       publicId,
       name,
       species,
       breed,
-      birthDateTs
-    );
-    return res.json({ txHash: receipt.hash });
+      birthDate: parsedBirthDate,
+      color: color ?? "",
+      physicalMark: physicalMark ?? "",
+    });
+    const { receipt } = await registerPet(dataHash);
+    return res.json({ txHash: receipt.hash, dataHash });
   } catch (error: any) {
     console.error("Failed to register pet via blockchain:", error);
     return res
@@ -115,15 +125,26 @@ router.post(
   async (req: Request, res: Response) => {
     // Endpoint debug untuk menambah catatan medis di kontrak.
     try {
-      const { petId, vaccineType, batchNumber, givenAt } = req.body;
-      const givenAtTs = toUnixTime(givenAt);
-      const receipt = await addMedicalRecord(
-        Number(petId),
+      const { petId, vaccineType, batchNumber, givenAt, notes, evidenceUrl } =
+        req.body;
+      const parsedGivenAt = toDate(givenAt);
+      const dataHash = buildMedicalRecordDataHash({
+        petId: Number(petId),
         vaccineType,
         batchNumber,
-        givenAtTs
+        givenAt: parsedGivenAt,
+        notes,
+        evidenceUrl,
+      });
+      const { receipt, recordId } = await addMedicalRecord(
+        Number(petId),
+        dataHash
       );
-      return res.json({ txHash: receipt.hash });
+      return res.json({
+        txHash: receipt.hash,
+        dataHash,
+        recordId: recordId.toString(),
+      });
     } catch (error: any) {
       if (isClinicAccessError(error)) {
         return res.status(403).json({

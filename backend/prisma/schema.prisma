@@ -43,6 +43,7 @@ model User {
   name          String
   email         String              @unique
   passwordHash  String              @map("password_hash")
+  walletAddress String?             @map("wallet_address")
   role          UserRole            @default(OWNER)
   pets          Pet[]               @relation("PetOwner")
   clinicRecords MedicalRecord[]     @relation("ClinicRecords")
@@ -60,6 +61,8 @@ model Pet {
   id            Int                 @id @default(autoincrement())
   publicId      String              @unique @map("public_id")
   onChainPetId  Int?                @map("on_chain_pet_id")
+  dataHash      String              @map("data_hash")
+  txHash        String              @map("tx_hash")
   name          String
   species       String
   breed         String
@@ -85,6 +88,9 @@ model MedicalRecord {
   pet          Pet                 @relation(fields: [petId], references: [id])
   clinicId     Int                 @map("clinic_id")
   clinic       User                @relation("ClinicRecords", fields: [clinicId], references: [id])
+  onChainRecordId Int?             @map("on_chain_record_id")
+  dataHash     String              @map("data_hash")
+  txHash       String              @map("tx_hash")
   vaccineType  String              @map("vaccine_type")
   batchNumber  String              @map("batch_number")
   givenAt      DateTime            @map("given_at")
@@ -118,6 +124,8 @@ model CorrectionRequest {
   pet         Pet              @relation(fields: [petId], references: [id])
   ownerId     Int              @map("owner_id")
   owner       User             @relation("OwnerCorrections", fields: [ownerId], references: [id])
+  dataHash    String           @map("data_hash")
+  txHash      String?          @map("tx_hash")
   fieldName   String           @map("field_name")
   oldValue    String           @map("old_value")
   newValue    String           @map("new_value")

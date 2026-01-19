@@ -6,35 +6,50 @@ pragma solidity ^0.8.20;
  * @notice Menyimpan identitas hewan, catatan medis, dan riwayat kepemilikan di blockchain.
  */
 contract PetIdentityRegistry {
-    // Data identitas dasar hewan.
+    enum Status {
+        PENDING,
+        VERIFIED,
+        REJECTED
+    }
+
+    // Data identitas hewan (ringkas, hanya hash + audit).
     struct Pet {
         uint256 id;
-        string publicId;
-        string name;
-        string species;
-        string breed;
-        uint256 birthDate;
+        bytes32 dataHash;
         address owner;
+        Status status;
+        uint256 createdAt;
+        uint256 verifiedAt;
+        address verifiedBy;
         bool exists;
     }
 
-    // Catatan vaksin/medis yang disimpan di chain.
+    // Catatan medis yang disimpan di chain (hash + audit).
     struct MedicalRecord {
         uint256 id;
         uint256 petId;
-        string vaccineType;
-        string batchNumber;
-        uint256 givenAt;
+        bytes32 dataHash;
         address clinic;
-        bool verified;
+        Status status;
+        uint256 createdAt;
+        uint256 verifiedAt;
+        address verifiedBy;
+    }
+
+    struct RecordPointer {
+        uint256 petId;
+        uint256 index;
+        bool exists;
     }
 
     // Penyimpanan utama hewan berdasarkan id.
     mapping(uint256 => Pet) public pets;
-    // Peta publicId ke petId untuk lookup cepat.
-    mapping(string => uint256) public publicIdToPetId;
     // Riwayat catatan medis per hewan.
     mapping(uint256 => MedicalRecord[]) public medicalRecords;
+    // Peta hash data pet ke petId untuk lookup cepat.
+    mapping(bytes32 => uint256) public petHashToId;
+    // Peta recordId ke petId + index di array.
+    mapping(uint256 => RecordPointer) public recordPointers;
 
     // Counter id untuk pet dan record.
     uint256 public nextPetId;
@@ -45,19 +60,58 @@ contract PetIdentityRegistry {
     mapping(address => bool) public clinics;
 
     // Event untuk perubahan data klinik.
-    event ClinicAdded(address clinic);
-    event ClinicRemoved(address clinic);
+    event ClinicAccessUpdated(
+        address indexed clinic,
+        Status status,
+        address indexed actor,
+        uint256 timestamp,
+        bytes32 dataHash
+    );
 
     // Event untuk pendaftaran dan perubahan pet.
-    event PetRegistered(uint256 indexed petId, string publicId, address indexed owner);
-    event PetUpdated(uint256 indexed petId);
+    event PetRegistered(
+        uint256 indexed petId,
+        bytes32 dataHash,
+        Status status,
+        address indexed actor,
+        uint256 timestamp
+    );
+    event PetUpdated(
+        uint256 indexed petId,
+        bytes32 dataHash,
+        Status status,
+        address indexed actor,
+        uint256 timestamp
+    );
 
     // Event untuk catatan medis.
-    event MedicalRecordAdded(uint256 indexed petId, uint256 indexed recordId);
-    event MedicalRecordVerified(uint256 indexed petId, uint256 indexed recordId, bool verified);
+    event MedicalRecordAdded(
+        uint256 indexed recordId,
+        uint256 indexed petId,
+        bytes32 dataHash,
+        Status status,
+        address indexed actor,
+        uint256 timestamp
+    );
+    event MedicalRecordReviewed(
+        uint256 indexed recordId,
+        uint256 indexed petId,
+        bytes32 dataHash,
+        Status status,
+        address indexed actor,
+        uint256 timestamp
+    );
 
     // Event untuk transfer kepemilikan.
-    event OwnershipTransferred(uint256 indexed petId, address indexed oldOwner, address indexed newOwner);
+    event OwnershipTransferred(
+        uint256 indexed petId,
+        bytes32 dataHash,
+        Status status,
+        address indexed actor,
+        uint256 timestamp,
+        address oldOwner,
+        address newOwner
+    );
 
     // Hanya pemilik kontrak.
     modifier onlyContractOwner() {
@@ -92,70 +146,92 @@ contract PetIdentityRegistry {
     function addClinic(address clinic) external onlyContractOwner {
         require(clinic != address(0), "Invalid clinic");
         clinics[clinic] = true;
-        emit ClinicAdded(clinic);
+        emit ClinicAccessUpdated(
+            clinic,
+            Status.VERIFIED,
+            msg.sender,
+            block.timestamp,
+            keccak256(abi.encodePacked(clinic))
+        );
     }
 
     // Hapus akses klinik.
     function removeClinic(address clinic) external onlyContractOwner {
         require(clinics[clinic], "Clinic not found");
         clinics[clinic] = false;
-        emit ClinicRemoved(clinic);
+        emit ClinicAccessUpdated(
+            clinic,
+            Status.REJECTED,
+            msg.sender,
+            block.timestamp,
+            keccak256(abi.encodePacked(clinic))
+        );
     }
 
     // Daftarkan hewan baru ke kontrak.
-    function registerPet(
-        string memory publicId,
-        string memory name,
-        string memory species,
-        string memory breed,
-        uint256 birthDate
-    ) external returns (uint256) {
-        require(publicIdToPetId[publicId] == 0, "publicId already used");
+    function registerPet(bytes32 dataHash) external returns (uint256) {
+        require(petHashToId[dataHash] == 0, "dataHash already used");
 
         nextPetId += 1;
         uint256 petId = nextPetId;
 
         pets[petId] = Pet({
             id: petId,
-            publicId: publicId,
-            name: name,
-            species: species,
-            breed: breed,
-            birthDate: birthDate,
             owner: msg.sender,
+            dataHash: dataHash,
+            status: Status.VERIFIED,
+            createdAt: block.timestamp,
+            verifiedAt: block.timestamp,
+            verifiedBy: msg.sender,
             exists: true
         });
 
-        publicIdToPetId[publicId] = petId;
+        petHashToId[dataHash] = petId;
 
-        emit PetRegistered(petId, publicId, msg.sender);
+        emit PetRegistered(
+            petId,
+            dataHash,
+            Status.VERIFIED,
+            msg.sender,
+            block.timestamp
+        );
         return petId;
     }
 
-    // Update data dasar hewan oleh klinik.
-    function updatePetBasicData(
-        uint256 petId,
-        string memory name,
-        string memory species,
-        string memory breed,
-        uint256 birthDate
-    ) external petExists(petId) onlyClinic {
+    // Update data hash hewan oleh klinik.
+    function updatePetBasicData(uint256 petId, bytes32 dataHash)
+        external
+        petExists(petId)
+        onlyClinic
+    {
+        uint256 existingId = petHashToId[dataHash];
+        require(
+            existingId == 0 || existingId == petId,
+            "dataHash already used"
+        );
         Pet storage pet = pets[petId];
-        pet.name = name;
-        pet.species = species;
-        pet.breed = breed;
-        pet.birthDate = birthDate;
+        pet.dataHash = dataHash;
+        pet.status = Status.VERIFIED;
+        pet.verifiedAt = block.timestamp;
+        pet.verifiedBy = msg.sender;
+        petHashToId[dataHash] = petId;
 
-        emit PetUpdated(petId);
+        emit PetUpdated(
+            petId,
+            dataHash,
+            pet.status,
+            msg.sender,
+            block.timestamp
+        );
     }
 
     // Tambah catatan medis oleh klinik.
-    function addMedicalRecord(
-        uint256 petId,
-        string memory vaccineType,
-        string memory batchNumber,
-        uint256 givenAt
-    ) external petExists(petId) onlyClinic returns (uint256) {
+    function addMedicalRecord(uint256 petId, bytes32 dataHash)
+        external
+        petExists(petId)
+        onlyClinic
+        returns (uint256)
+    {
         nextRecordId += 1;
         uint256 recordId = nextRecordId;
 
@@ -163,30 +239,61 @@ contract PetIdentityRegistry {
             MedicalRecord({
                 id: recordId,
                 petId: petId,
-                vaccineType: vaccineType,
-                batchNumber: batchNumber,
-                givenAt: givenAt,
                 clinic: msg.sender,
-                verified: false
+                dataHash: dataHash,
+                status: Status.PENDING,
+                createdAt: block.timestamp,
+                verifiedAt: 0,
+                verifiedBy: address(0)
             })
         );
 
-        emit MedicalRecordAdded(petId, recordId);
+        recordPointers[recordId] = RecordPointer({
+            petId: petId,
+            index: medicalRecords[petId].length - 1,
+            exists: true
+        });
+
+        emit MedicalRecordAdded(
+            recordId,
+            petId,
+            dataHash,
+            Status.PENDING,
+            msg.sender,
+            block.timestamp
+        );
         return recordId;
     }
 
     // Verifikasi/tolak catatan medis.
-    function verifyMedicalRecord(
-        uint256 petId,
-        uint256 recordIndex,
-        bool verified
-    ) external petExists(petId) onlyClinic {
-        require(recordIndex < medicalRecords[petId].length, "Record index out of bounds");
+    function verifyMedicalRecord(uint256 recordId, Status status)
+        external
+        onlyClinic
+    {
+        require(
+            status == Status.VERIFIED || status == Status.REJECTED,
+            "Invalid status"
+        );
+        RecordPointer memory pointer = recordPointers[recordId];
+        require(pointer.exists, "Record does not exist");
 
-        MedicalRecord storage record = medicalRecords[petId][recordIndex];
-        record.verified = verified;
+        MedicalRecord storage record = medicalRecords[pointer.petId][
+            pointer.index
+        ];
+        require(record.status == Status.PENDING, "Record already reviewed");
 
-        emit MedicalRecordVerified(petId, record.id, verified);
+        record.status = status;
+        record.verifiedAt = block.timestamp;
+        record.verifiedBy = msg.sender;
+
+        emit MedicalRecordReviewed(
+            recordId,
+            pointer.petId,
+            record.dataHash,
+            status,
+            msg.sender,
+            block.timestamp
+        );
     }
 
     // Transfer kepemilikan hewan ke alamat baru.
@@ -200,7 +307,15 @@ contract PetIdentityRegistry {
         address oldOwner = pets[petId].owner;
         pets[petId].owner = newOwner;
 
-        emit OwnershipTransferred(petId, oldOwner, newOwner);
+        emit OwnershipTransferred(
+            petId,
+            pets[petId].dataHash,
+            pets[petId].status,
+            msg.sender,
+            block.timestamp,
+            oldOwner,
+            newOwner
+        );
     }
 
     // Ambil data hewan berdasarkan id.
@@ -223,13 +338,13 @@ contract PetIdentityRegistry {
         return medicalRecords[petId];
     }
 
-    // Cari petId berdasarkan publicId.
-    function getPetIdByPublicId(string memory publicId)
+    // Cari petId berdasarkan hash data.
+    function getPetIdByHash(bytes32 dataHash)
         external
         view
         returns (uint256)
     {
-        uint256 petId = publicIdToPetId[publicId];
+        uint256 petId = petHashToId[dataHash];
         require(petId != 0 && pets[petId].exists, "Pet not found");
         return petId;
     }

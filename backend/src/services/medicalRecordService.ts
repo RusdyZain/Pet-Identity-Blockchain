@@ -13,6 +13,9 @@ const REVIEWABLE_MEDICAL_STATUS: MedicalRecordStatus[] = [
 export const createMedicalRecord = async (params: {
   petId: number;
   clinicId: number;
+  onChainRecordId: number;
+  dataHash: string;
+  txHash: string;
   vaccineType: string;
   batchNumber: string;
   givenAt: Date;
@@ -32,6 +35,9 @@ export const createMedicalRecord = async (params: {
     data: {
       petId: params.petId,
       clinicId: params.clinicId,
+      onChainRecordId: params.onChainRecordId,
+      dataHash: params.dataHash,
+      txHash: params.txHash,
       vaccineType: params.vaccineType,
       batchNumber: params.batchNumber,
       givenAt: params.givenAt,
@@ -78,7 +84,8 @@ export const listPendingRecordsForClinic = async (clinicId: number) => {
 export const verifyMedicalRecord = async (
   recordId: number,
   reviewerId: number,
-  status: MedicalRecordStatus
+  status: MedicalRecordStatus,
+  txHash: string
 ) => {
   if (!REVIEWABLE_MEDICAL_STATUS.includes(status)) {
     throw new AppError("Status tidak valid", 400);
@@ -107,6 +114,7 @@ export const verifyMedicalRecord = async (
       status,
       verifiedById: reviewerId,
       verifiedAt: new Date(),
+      txHash,
     },
   });
 

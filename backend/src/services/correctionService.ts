@@ -7,6 +7,7 @@ import {
   getBlockchainErrorMessage,
   resolveOnChainPetId,
 } from "../blockchain/petIdentityResolver";
+import { buildPetDataHash } from "../utils/dataHash";
 import {
   CorrectionField,
   correctionFieldMap,
@@ -18,29 +19,6 @@ const REVIEWABLE_STATUSES: CorrectionStatus[] = [
   CorrectionStatus.APPROVED,
   CorrectionStatus.REJECTED,
 ];
-
-const CHAIN_FIELDS = new Set<CorrectionField>([
-  "name",
-  "species",
-  "breed",
-  "birth_date",
-]);
-
-const buildOnChainPayload = (
-  pet: {
-    name: string;
-    species: string;
-    breed: string;
-    birthDate: Date;
-  },
-  fieldName: CorrectionField,
-  value: unknown
-) => ({
-  name: fieldName === "name" ? String(value) : pet.name,
-  species: fieldName === "species" ? String(value) : pet.species,
-  breed: fieldName === "breed" ? String(value) : pet.breed,
-  birthDate: fieldName === "birth_date" ? (value as Date) : pet.birthDate,
-});
 
 // List koreksi data (bisa difilter status).
 export const listCorrections = async (status?: CorrectionStatus) => {
@@ -81,14 +59,8 @@ export const reviewCorrection = async (params: {
 
   const actions: Prisma.PrismaPromise<any>[] = [];
   let petUpdateData: Record<string, unknown> | null = null;
-  let onChainPayload:
-    | {
-        name: string;
-        species: string;
-        breed: string;
-        birthDate: Date;
-      }
-    | null = null;
+  let onChainDataHash: string | null = null;
+  let onChainTxHash: string | null = null;
   if (params.status === CorrectionStatus.APPROVED) {
     const fieldName = correction.fieldName as CorrectionField;
     if (!(fieldName in correctionFieldMap)) {
@@ -96,33 +68,53 @@ export const reviewCorrection = async (params: {
     }
 
     const value = parsePetFieldValue(fieldName, correction.newValue);
+    const nextPet = {
+      publicId: correction.pet.publicId,
+      name: correction.pet.name,
+      species: correction.pet.species,
+      breed: correction.pet.breed,
+      birthDate: correction.pet.birthDate,
+      color: correction.pet.color,
+      physicalMark: correction.pet.physicalMark,
+    };
+
+    if (fieldName === "name") {
+      nextPet.name = String(value);
+    } else if (fieldName === "species") {
+      nextPet.species = String(value);
+    } else if (fieldName === "breed") {
+      nextPet.breed = String(value);
+    } else if (fieldName === "birth_date") {
+      nextPet.birthDate = value as Date;
+    } else if (fieldName === "color") {
+      nextPet.color = String(value);
+    } else if (fieldName === "physical_mark") {
+      nextPet.physicalMark = String(value);
+    }
+
+    onChainDataHash = buildPetDataHash(nextPet);
     petUpdateData = {
       [correctionFieldMap[fieldName]]: value,
     };
-    if (CHAIN_FIELDS.has(fieldName)) {
-      onChainPayload = buildOnChainPayload(correction.pet, fieldName, value);
-    }
   }
 
-  if (onChainPayload) {
+  if (onChainDataHash) {
     const onChainPetId = await resolveOnChainPetId({
       id: correction.petId,
       publicId: correction.pet.publicId,
       onChainPetId: correction.pet.onChainPetId,
-      name: onChainPayload.name,
-      species: onChainPayload.species,
-      breed: onChainPayload.breed,
-      birthDate: onChainPayload.birthDate,
+      dataHash: onChainDataHash,
+      name: correction.pet.name,
+      species: correction.pet.species,
+      breed: correction.pet.breed,
+      birthDate: correction.pet.birthDate,
+      color: correction.pet.color,
+      physicalMark: correction.pet.physicalMark,
     });
 
     try {
-      await updatePetBasicData(
-        onChainPetId,
-        onChainPayload.name,
-        onChainPayload.species,
-        onChainPayload.breed,
-        Math.floor(onChainPayload.birthDate.getTime() / 1000)
-      );
+      const receipt = await updatePetBasicData(onChainPetId, onChainDataHash);
+      onChainTxHash = receipt.hash;
     } catch (error) {
       const message =
         getBlockchainErrorMessage(error) ??
@@ -135,7 +127,11 @@ export const reviewCorrection = async (params: {
     actions.push(
       prisma.pet.update({
         where: { id: correction.petId },
-        data: petUpdateData,
+        data: {
+          ...petUpdateData,
+          ...(onChainDataHash ? { dataHash: onChainDataHash } : {}),
+          ...(onChainTxHash ? { txHash: onChainTxHash } : {}),
+        },
       })
     );
   }
@@ -148,6 +144,7 @@ export const reviewCorrection = async (params: {
         reviewedById: params.reviewerId,
         reviewedAt: new Date(),
         reason: params.reason ?? null,
+        ...(onChainTxHash ? { txHash: onChainTxHash } : {}),
       },
     })
   );
