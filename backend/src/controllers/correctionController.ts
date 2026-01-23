@@ -4,7 +4,7 @@ import {
   reviewCorrection,
 } from "../services/correctionService";
 import { AppError } from "../utils/errors";
-import { CorrectionStatus } from "@prisma/client";
+import { CorrectionStatus } from "../types/enums";
 import { getBackendWalletAddress } from "../blockchain/petIdentityClient";
 import { ensureUserWalletAddress } from "../services/userWalletService";
 

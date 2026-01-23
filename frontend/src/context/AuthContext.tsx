@@ -7,6 +7,7 @@ interface AuthContextValue {
   isAuthenticated: boolean;
   loading: boolean;
   login: (email: string, password: string) => Promise<AuthUser>;
+  updateUser: (user: AuthUser) => void;
   logout: () => void;
 }
 
@@ -52,6 +53,11 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     }
   };
 
+  // Update data user di state dan storage.
+  const updateUser = (nextUser: AuthUser) => {
+    setUser(nextUser);
+  };
+
   // Proses logout menghapus token dan reset state user.
   const logout = () => {
     authApi.logout();
@@ -65,6 +71,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       isAuthenticated: Boolean(user),
       loading,
       login: handleLogin,
+      updateUser,
       logout,
     }),
     [user, loading],

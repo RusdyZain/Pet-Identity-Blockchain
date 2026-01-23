@@ -1,11 +1,11 @@
-import {
-  MedicalRecordStatus,
-  PetStatus,
-  Prisma,
-  UserRole,
-} from "@prisma/client";
+import { IsNull } from "typeorm";
+import { MedicalRecordStatus, PetStatus, UserRole } from "../types/enums";
 import { randomUUID } from "crypto";
-import { prisma } from "../config/prisma";
+import { AppDataSource } from "../config/dataSource";
+import { Pet } from "../entities/Pet";
+import { User } from "../entities/User";
+import { OwnershipHistory } from "../entities/OwnershipHistory";
+import { CorrectionRequest } from "../entities/CorrectionRequest";
 import { AppError } from "../utils/errors";
 import { createNotification } from "./notificationService";
 import {
@@ -58,8 +58,9 @@ export const createPet = async (
 ) => {
   const publicId = data.publicId ?? generatePublicId();
 
-  const pet = await prisma.pet.create({
-    data: {
+  const petRepo = AppDataSource.getRepository(Pet);
+  const pet = await petRepo.save(
+    petRepo.create({
       publicId,
       onChainPetId: data.onChainPetId ?? null,
       dataHash: data.dataHash,
@@ -72,8 +73,8 @@ export const createPet = async (
       color: data.color,
       physicalMark: data.physicalMark,
       ownerId,
-    },
-  });
+    })
+  );
 
   return pet;
 };
@@ -83,28 +84,31 @@ export const listPets = async (
   user: Express.UserContext,
   query?: { search?: string }
 ) => {
-  const where: Prisma.PetWhereInput = {};
+  const petRepo = AppDataSource.getRepository(Pet);
+  const qb = petRepo
+    .createQueryBuilder("pet")
+    .orderBy("pet.createdAt", "DESC");
+
   if (user.role === UserRole.OWNER) {
-    where.ownerId = user.id;
+    qb.where("pet.ownerId = :ownerId", { ownerId: user.id });
   } else if (query?.search) {
-    where.OR = [
-      { name: { contains: query.search, mode: "insensitive" } },
-      { publicId: { contains: query.search, mode: "insensitive" } },
-    ];
+    qb.where("pet.name ILIKE :search OR pet.publicId ILIKE :search", {
+      search: `%${query.search}%`,
+    });
   }
 
-  return prisma.pet.findMany({
-    where,
-    orderBy: { createdAt: "desc" },
-  });
+  return qb.getMany();
 };
 
 // Ambil detail hewan dengan validasi akses.
 export const getPetById = async (petId: number, user: Express.UserContext) => {
-  const pet = await prisma.pet.findUnique({
-    where: { id: petId },
-    include: { owner: { select: { id: true, name: true, email: true } } },
-  });
+  const petRepo = AppDataSource.getRepository(Pet);
+  const pet = await petRepo
+    .createQueryBuilder("pet")
+    .leftJoin("pet.owner", "owner")
+    .select(["pet", "owner.id", "owner.name", "owner.email"])
+    .where("pet.id = :petId", { petId })
+    .getOne();
 
   if (!pet) throw new AppError("Pet not found", 404);
   if (user.role === UserRole.OWNER && pet.ownerId !== user.id) {
@@ -119,7 +123,9 @@ export const getOwnershipHistory = async (
   petId: number,
   user: Express.UserContext
 ) => {
-  const pet = await prisma.pet.findUnique({ where: { id: petId } });
+  const petRepo = AppDataSource.getRepository(Pet);
+  const historyRepo = AppDataSource.getRepository(OwnershipHistory);
+  const pet = await petRepo.findOne({ where: { id: petId } });
   if (!pet) throw new AppError("Pet not found", 404);
   if (pet.status !== PetStatus.TRANSFER_PENDING) {
     throw new AppError("Tidak ada transfer yang perlu diterima", 400);
@@ -129,14 +135,22 @@ export const getOwnershipHistory = async (
     throw new AppError("Forbidden", 403);
   }
 
-  return prisma.ownershipHistory.findMany({
-    where: { petId },
-    include: {
-      fromOwner: { select: { id: true, name: true, email: true } },
-      toOwner: { select: { id: true, name: true, email: true } },
-    },
-    orderBy: { id: "desc" },
-  });
+  return historyRepo
+    .createQueryBuilder("history")
+    .leftJoin("history.fromOwner", "fromOwner")
+    .leftJoin("history.toOwner", "toOwner")
+    .select([
+      "history",
+      "fromOwner.id",
+      "fromOwner.name",
+      "fromOwner.email",
+      "toOwner.id",
+      "toOwner.name",
+      "toOwner.email",
+    ])
+    .where("history.petId = :petId", { petId })
+    .orderBy("history.id", "DESC")
+    .getMany();
 };
 
 // Mulai proses transfer kepemilikan ke pemilik baru.
@@ -145,7 +159,10 @@ export const initiateTransfer = async (
   currentOwnerId: number,
   newOwnerEmail: string
 ) => {
-  const pet = await prisma.pet.findUnique({ where: { id: petId } });
+  const petRepo = AppDataSource.getRepository(Pet);
+  const userRepo = AppDataSource.getRepository(User);
+  const historyRepo = AppDataSource.getRepository(OwnershipHistory);
+  const pet = await petRepo.findOne({ where: { id: petId } });
   if (!pet || pet.ownerId !== currentOwnerId) {
     throw new AppError("Pet not found or access denied", 404);
   }
@@ -153,7 +170,7 @@ export const initiateTransfer = async (
     throw new AppError("Transfer sedang diproses", 400);
   }
 
-  const newOwner = await prisma.user.findUnique({
+  const newOwner = await userRepo.findOne({
     where: { email: newOwnerEmail.trim().toLowerCase() },
   });
 
@@ -165,27 +182,25 @@ export const initiateTransfer = async (
     throw new AppError("Cannot transfer to yourself", 400);
   }
 
-  const pendingTransfer = await prisma.ownershipHistory.findFirst({
-    where: { petId, transferredAt: null },
+  const pendingTransfer = await historyRepo.findOne({
+    where: { petId, transferredAt: IsNull() },
   });
 
   if (pendingTransfer) {
     throw new AppError("Transfer already pending", 400);
   }
 
-  await prisma.$transaction([
-    prisma.ownershipHistory.create({
-      data: {
-        petId,
-        fromOwnerId: currentOwnerId,
-        toOwnerId: newOwner.id,
-      },
-    }),
-    prisma.pet.update({
-      where: { id: petId },
-      data: { status: PetStatus.TRANSFER_PENDING },
-    }),
-  ]);
+  await AppDataSource.transaction(async (manager) => {
+    await manager.getRepository(OwnershipHistory).save({
+      petId,
+      fromOwnerId: currentOwnerId,
+      toOwnerId: newOwner.id,
+    });
+    await manager.getRepository(Pet).update(
+      { id: petId },
+      { status: PetStatus.TRANSFER_PENDING }
+    );
+  });
 
   await createNotification({
     userId: newOwner.id,
@@ -198,26 +213,33 @@ export const initiateTransfer = async (
 
 // Terima transfer kepemilikan oleh pemilik baru.
 export const acceptTransfer = async (petId: number, newOwnerId: number) => {
-  const transfer = await prisma.ownershipHistory.findFirst({
-    where: { petId, toOwnerId: newOwnerId, transferredAt: null },
+  const historyRepo = AppDataSource.getRepository(OwnershipHistory);
+  const petRepo = AppDataSource.getRepository(Pet);
+  const transfer = await historyRepo.findOne({
+    where: { petId, toOwnerId: newOwnerId, transferredAt: IsNull() },
   });
   if (!transfer) {
     throw new AppError("No pending transfer for this pet", 404);
   }
 
-  const pet = await prisma.pet.findUnique({ where: { id: petId } });
+  const pet = await petRepo.findOne({ where: { id: petId } });
   if (!pet) throw new AppError("Pet not found", 404);
 
-  const [updatedPet] = await prisma.$transaction([
-    prisma.pet.update({
+  let updatedPet: Pet | null = null;
+  await AppDataSource.transaction(async (manager) => {
+    await manager
+      .getRepository(Pet)
+      .update(
+        { id: petId },
+        { ownerId: newOwnerId, status: PetStatus.REGISTERED }
+      );
+    await manager
+      .getRepository(OwnershipHistory)
+      .update({ id: transfer.id }, { transferredAt: new Date() });
+    updatedPet = await manager.getRepository(Pet).findOne({
       where: { id: petId },
-      data: { ownerId: newOwnerId, status: PetStatus.REGISTERED },
-    }),
-    prisma.ownershipHistory.update({
-      where: { id: transfer.id },
-      data: { transferredAt: new Date() },
-    }),
-  ]);
+    });
+  });
 
   await createNotification({
     userId: transfer.fromOwnerId,
@@ -230,27 +252,43 @@ export const acceptTransfer = async (petId: number, newOwnerId: number) => {
     message: `Anda kini tercatat sebagai pemilik ${pet.name}.`,
   });
 
+  if (!updatedPet) {
+    throw new AppError("Pet not found", 404);
+  }
   return updatedPet;
 };
 
 // Data trace publik berdasarkan publicId (tanpa menampilkan nama lengkap pemilik).
 export const getTraceByPublicId = async (publicId: string) => {
-  const pet = await prisma.pet.findUnique({
-    where: { publicId },
-    include: {
-      owner: { select: { name: true } },
-      medicalRecords: {
-        where: { status: MedicalRecordStatus.VERIFIED },
-        orderBy: { givenAt: "desc" },
-      },
-    },
-  });
+  const petRepo = AppDataSource.getRepository(Pet);
+  const pet = await petRepo
+    .createQueryBuilder("pet")
+    .leftJoin("pet.owner", "owner")
+    .leftJoinAndSelect(
+      "pet.medicalRecords",
+      "medicalRecords",
+      "medicalRecords.status = :status",
+      {
+        status: MedicalRecordStatus.VERIFIED,
+      }
+    )
+    .select([
+      "pet",
+      "owner.name",
+      "medicalRecords.id",
+      "medicalRecords.vaccineType",
+      "medicalRecords.givenAt",
+      "medicalRecords.status",
+    ])
+    .where("pet.publicId = :publicId", { publicId })
+    .orderBy("medicalRecords.givenAt", "DESC")
+    .getOne();
 
   if (!pet) {
     throw new AppError("Pet not found", 404);
   }
 
-  const vaccineSummary = pet.medicalRecords.map((record) => ({
+  const vaccineSummary = (pet.medicalRecords ?? []).map((record) => ({
     vaccineType: record.vaccineType,
     lastGivenAt: record.givenAt,
     status: record.status,
@@ -273,7 +311,9 @@ export const createCorrectionRequest = async (params: {
   newValue: string;
   reason?: string;
 }) => {
-  const pet = await prisma.pet.findUnique({ where: { id: params.petId } });
+  const petRepo = AppDataSource.getRepository(Pet);
+  const correctionRepo = AppDataSource.getRepository(CorrectionRequest);
+  const pet = await petRepo.findOne({ where: { id: params.petId } });
   if (!pet || pet.ownerId !== params.ownerId) {
     throw new AppError("Pet not found or access denied", 404);
   }
@@ -292,8 +332,8 @@ export const createCorrectionRequest = async (params: {
     reason: params.reason ?? null,
   });
 
-  return prisma.correctionRequest.create({
-    data: {
+  return correctionRepo.save(
+    correctionRepo.create({
       petId: params.petId,
       ownerId: params.ownerId,
       dataHash,
@@ -301,6 +341,6 @@ export const createCorrectionRequest = async (params: {
       oldValue: `${oldValue ?? ""}`,
       newValue: params.newValue,
       reason: params.reason ?? null,
-    },
-  });
+    })
+  );
 };

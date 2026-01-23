@@ -1,4 +1,5 @@
-import { prisma } from "../config/prisma";
+import { AppDataSource } from "../config/dataSource";
+import { Pet } from "../entities/Pet";
 import { AppError } from "../utils/errors";
 import {
   getPet,
@@ -111,10 +112,10 @@ export const resolveOnChainPetId = async (
 
   const existingId = await tryGetPetIdByHash(resolvedDataHash);
   if (existingId !== null) {
-    await prisma.pet.update({
-      where: { id: pet.id },
-      data: { onChainPetId: existingId, dataHash: resolvedDataHash },
-    });
+    await AppDataSource.getRepository(Pet).update(
+      { id: pet.id },
+      { onChainPetId: existingId, dataHash: resolvedDataHash }
+    );
     return existingId;
   }
 
@@ -123,23 +124,23 @@ export const resolveOnChainPetId = async (
       resolvedDataHash
     );
     const resolvedId = Number(newOnChainPetId);
-    await prisma.pet.update({
-      where: { id: pet.id },
-      data: {
+    await AppDataSource.getRepository(Pet).update(
+      { id: pet.id },
+      {
         onChainPetId: resolvedId,
         dataHash: resolvedDataHash,
         txHash: receipt.hash,
-      },
-    });
+      }
+    );
     return resolvedId;
   } catch (error) {
     if (isDataHashAlreadyUsedError(error)) {
       const fallbackId = await tryGetPetIdByHash(resolvedDataHash);
       if (fallbackId !== null) {
-        await prisma.pet.update({
-          where: { id: pet.id },
-          data: { onChainPetId: fallbackId, dataHash: resolvedDataHash },
-        });
+        await AppDataSource.getRepository(Pet).update(
+          { id: pet.id },
+          { onChainPetId: fallbackId, dataHash: resolvedDataHash }
+        );
         return fallbackId;
       }
     }

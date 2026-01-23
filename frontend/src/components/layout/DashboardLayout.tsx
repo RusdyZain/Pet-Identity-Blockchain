@@ -10,6 +10,7 @@ const navConfig: Record<UserRole, NavLink[]> = {
     { label: 'Dashboard', to: '/owner/dashboard', description: 'Ringkasan hewan & vaksin' },
     { label: 'Registrasi Hewan', to: '/owner/pets/new', description: 'Tambah identitas baru' },
     { label: 'Notifikasi', to: '/owner/notifications', description: 'Info transfer & vaksin' },
+    { label: 'Akun Saya', to: '/owner/account', description: 'Kelola profil pemilik' },
   ],
   CLINIC: [
     { label: 'Dashboard', to: '/clinic/dashboard', description: 'Cari pasien & histori' },
@@ -17,7 +18,11 @@ const navConfig: Record<UserRole, NavLink[]> = {
     { label: 'Koreksi Data', to: '/clinic/corrections', description: 'Review permintaan owner' },
     { label: 'Notifikasi', to: '/clinic/notifications', description: 'Update reguler' },
   ],
-  ADMIN: [{ label: 'Dashboard', to: '/admin/dashboard', description: 'Statistik global' }],
+  ADMIN: [
+    { label: 'Dashboard', to: '/admin/dashboard', description: 'Statistik global' },
+    { label: 'Kelola Akun', to: '/admin/users', description: 'CRUD akun & role' },
+    { label: 'Data Hewan', to: '/admin/pets', description: 'Semua hewan terdaftar' },
+  ],
   PUBLIC_VERIFIER: [],
 };
 

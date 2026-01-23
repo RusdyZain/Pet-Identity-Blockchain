@@ -75,6 +75,17 @@ export const LoginPage = () => {
           </button>
           .
         </p>
+        <p className="mt-2">
+          Belum punya akun pemilik?{' '}
+          <button
+            type="button"
+            className="text-primary font-semibold"
+            onClick={() => navigate('/register')}
+          >
+            Daftar di sini
+          </button>
+          .
+        </p>
       </div>
     </div>
   );

@@ -1,7 +1,7 @@
-import { Pet } from "@prisma/client";
+import { Pet } from "../entities/Pet";
 import { AppError } from "../utils/errors";
 
-// Peta field input (snake_case) ke kolom Prisma (camelCase).
+// Peta field input (snake_case) ke kolom model (camelCase).
 export const correctionFieldMap = {
   name: "name",
   species: "species",

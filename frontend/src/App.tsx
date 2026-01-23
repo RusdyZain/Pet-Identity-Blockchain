@@ -3,6 +3,7 @@ import { DashboardLayout } from './components/layout/DashboardLayout';
 import { PublicLayout } from './components/layout/PublicLayout';
 import { ProtectedRoute } from './routes/ProtectedRoute';
 import { LoginPage } from './pages/auth/LoginPage';
+import { RegisterOwnerPage } from './pages/auth/RegisterOwnerPage';
 import { TracePage } from './pages/public/TracePage';
 import { OwnerDashboard } from './pages/owner/OwnerDashboard';
 import { OwnerNewPet } from './pages/owner/OwnerNewPet';
@@ -11,6 +12,7 @@ import { OwnerMedicalRecordsPage } from './pages/owner/OwnerMedicalRecordsPage';
 import { OwnerCorrectionForm } from './pages/owner/OwnerCorrectionForm';
 import { OwnerTransferPage } from './pages/owner/OwnerTransferPage';
 import { OwnerNotificationsPage } from './pages/owner/OwnerNotificationsPage';
+import { OwnerAccountPage } from './pages/owner/OwnerAccountPage';
 import { ClinicDashboard } from './pages/clinic/ClinicDashboard';
 import { ClinicPetDetail } from './pages/clinic/ClinicPetDetail';
 import { ClinicMedicalRecordForm } from './pages/clinic/ClinicMedicalRecordForm';
@@ -18,6 +20,8 @@ import { ClinicPendingRecords } from './pages/clinic/ClinicPendingRecords';
 import { ClinicCorrectionsPage } from './pages/clinic/ClinicCorrectionsPage';
 import { ClinicNotificationsPage } from './pages/clinic/ClinicNotificationsPage';
 import { AdminDashboard } from './pages/admin/AdminDashboard';
+import { AdminUsersPage } from './pages/admin/AdminUsersPage';
+import { AdminPetsPage } from './pages/admin/AdminPetsPage';
 import BlockchainSimulatorPage from './pages/BlockchainSimulatorPage';
 
 // App merangkum seluruh konfigurasi rute dan batasan akses.
@@ -27,6 +31,7 @@ const App = () => {
       {/* Halaman publik tanpa autentikasi */}
       <Route element={<PublicLayout />}>
         <Route path="/login" element={<LoginPage />} />
+        <Route path="/register" element={<RegisterOwnerPage />} />
         <Route path="/trace" element={<TracePage />} />
       </Route>
 
@@ -40,6 +45,7 @@ const App = () => {
           <Route path="/owner/pets/:id/corrections/new" element={<OwnerCorrectionForm />} />
           <Route path="/owner/pets/:id/transfer" element={<OwnerTransferPage />} />
           <Route path="/owner/notifications" element={<OwnerNotificationsPage />} />
+          <Route path="/owner/account" element={<OwnerAccountPage />} />
         </Route>
       </Route>
 
@@ -59,6 +65,8 @@ const App = () => {
       <Route element={<ProtectedRoute allowedRoles={['ADMIN']} />}>
         <Route element={<DashboardLayout />}>
           <Route path="/admin/dashboard" element={<AdminDashboard />} />
+          <Route path="/admin/users" element={<AdminUsersPage />} />
+          <Route path="/admin/pets" element={<AdminPetsPage />} />
         </Route>
       </Route>
 

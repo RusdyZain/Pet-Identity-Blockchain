@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { UserRole } from "@prisma/client";
+import { UserRole } from "../types/enums";
 import {
   createMedicalRecordController,
   listMedicalRecordsController,

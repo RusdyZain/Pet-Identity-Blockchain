@@ -1,10 +1,13 @@
 import axios from 'axios';
 import type {
+  AdminPet,
+  AdminUser,
   AuthResponse,
   CorrectionRequest,
   MedicalRecord,
   Notification,
   OwnershipHistory,
+  OwnerProfile,
   Pet,
   TraceResult,
 } from '../types';
@@ -45,6 +48,22 @@ export const authApi = {
   },
   logout: () => {
     localStorage.removeItem(TOKEN_KEY);
+  },
+};
+
+// API akun owner (profil sendiri).
+export const ownerAccountApi = {
+  profile: async () => {
+    const { data } = await api.get<OwnerProfile>('/owners/me');
+    return data;
+  },
+  update: async (payload: { name?: string; email?: string; password?: string }) => {
+    const { data } = await api.patch<OwnerProfile>('/owners/me', payload);
+    return data;
+  },
+  remove: async () => {
+    const { data } = await api.delete<{ message: string }>('/owners/me');
+    return data;
   },
 };
 
@@ -164,6 +183,33 @@ export const traceApi = {
 export const statsApi = {
   adminSummary: async () => {
     const { data } = await api.get('/admin/summary');
+    return data;
+  },
+};
+
+// API admin untuk kelola akun dan daftar hewan.
+export const adminApi = {
+  listUsers: async (params?: { role?: string; search?: string }) => {
+    const { data } = await api.get<AdminUser[]>('/admin/users', { params });
+    return data;
+  },
+  createUser: async (payload: { name: string; email: string; password: string; role: string }) => {
+    const { data } = await api.post<AdminUser>('/admin/users', payload);
+    return data;
+  },
+  updateUser: async (
+    id: number,
+    payload: { name?: string; email?: string; password?: string; role?: string },
+  ) => {
+    const { data } = await api.patch<AdminUser>(`/admin/users/${id}`, payload);
+    return data;
+  },
+  deleteUser: async (id: number) => {
+    const { data } = await api.delete<{ message: string }>(`/admin/users/${id}`);
+    return data;
+  },
+  listPets: async (params?: { search?: string }) => {
+    const { data } = await api.get<AdminPet[]>('/admin/pets', { params });
     return data;
   },
 };

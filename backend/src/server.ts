@@ -1,10 +1,12 @@
 import app from "./app";
 import { ENV } from "./config/env";
-import { connectPrisma } from "./config/prisma";
+import { AppDataSource } from "./config/dataSource";
+import { ensureSchema } from "./config/ensureSchema";
 
 // Mulai server setelah koneksi database siap.
 const start = async () => {
-  await connectPrisma();
+  await AppDataSource.initialize();
+  await ensureSchema();
   app.listen(ENV.port, () => {
     console.log(`Server running on port ${ENV.port}`);
   });

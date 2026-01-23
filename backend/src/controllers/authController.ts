@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from "express";
 import { registerUser, loginUser } from "../services/authService";
-import { UserRole } from "@prisma/client";
+import { UserRole } from "../types/enums";
 import { AppError } from "../utils/errors";
 
 // Handler registrasi user baru.

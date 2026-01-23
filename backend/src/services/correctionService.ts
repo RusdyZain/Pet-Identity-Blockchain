@@ -1,5 +1,7 @@
-import { CorrectionStatus, Prisma } from "@prisma/client";
-import { prisma } from "../config/prisma";
+import { CorrectionStatus } from "../types/enums";
+import { AppDataSource } from "../config/dataSource";
+import { CorrectionRequest } from "../entities/CorrectionRequest";
+import { Pet } from "../entities/Pet";
 import { AppError } from "../utils/errors";
 import { createNotification } from "./notificationService";
 import { updatePetBasicData } from "../blockchain/petIdentityClient";
@@ -22,15 +24,26 @@ const REVIEWABLE_STATUSES: CorrectionStatus[] = [
 
 // List koreksi data (bisa difilter status).
 export const listCorrections = async (status?: CorrectionStatus) => {
-  const where = status ? { status } : undefined;
-  return prisma.correctionRequest.findMany({
-    ...(where ? { where } : {}),
-    include: {
-      pet: { select: { id: true, name: true, publicId: true } },
-      owner: { select: { id: true, name: true } },
-    },
-    orderBy: { createdAt: "desc" },
-  });
+  const repo = AppDataSource.getRepository(CorrectionRequest);
+  const qb = repo
+    .createQueryBuilder("correction")
+    .leftJoin("correction.pet", "pet")
+    .leftJoin("correction.owner", "owner")
+    .select([
+      "correction",
+      "pet.id",
+      "pet.name",
+      "pet.publicId",
+      "owner.id",
+      "owner.name",
+    ])
+    .orderBy("correction.createdAt", "DESC");
+
+  if (status) {
+    qb.where("correction.status = :status", { status });
+  }
+
+  return qb.getMany();
 };
 
 // Setujui atau tolak koreksi, sekaligus update data jika disetujui.
@@ -44,20 +57,20 @@ export const reviewCorrection = async (params: {
     throw new AppError("Status tidak valid", 400);
   }
 
-  const correction = await prisma.correctionRequest.findUnique({
+  const correctionRepo = AppDataSource.getRepository(CorrectionRequest);
+  const correction = await correctionRepo.findOne({
     where: { id: params.correctionId },
-    include: {
-      pet: true,
-      owner: true,
-    },
+    relations: { pet: true, owner: true },
   });
 
   if (!correction) throw new AppError("Correction not found", 404);
   if (correction.status !== CorrectionStatus.PENDING) {
     throw new AppError("Correction already reviewed", 400);
   }
+  if (!correction.pet) {
+    throw new AppError("Pet not found", 404);
+  }
 
-  const actions: Prisma.PrismaPromise<any>[] = [];
   let petUpdateData: Record<string, unknown> | null = null;
   let onChainDataHash: string | null = null;
   let onChainTxHash: string | null = null;
@@ -123,34 +136,39 @@ export const reviewCorrection = async (params: {
     }
   }
 
-  if (petUpdateData) {
-    actions.push(
-      prisma.pet.update({
-        where: { id: correction.petId },
-        data: {
-          ...petUpdateData,
-          ...(onChainDataHash ? { dataHash: onChainDataHash } : {}),
-          ...(onChainTxHash ? { txHash: onChainTxHash } : {}),
-        },
-      })
-    );
-  }
+  const updatedCorrection = await AppDataSource.transaction(
+    async (manager) => {
+      if (petUpdateData) {
+        await manager.getRepository(Pet).update(
+          { id: correction.petId },
+          {
+            ...(petUpdateData as Partial<Pet>),
+            ...(onChainDataHash ? { dataHash: onChainDataHash } : {}),
+            ...(onChainTxHash ? { txHash: onChainTxHash } : {}),
+          }
+        );
+      }
 
-  actions.push(
-    prisma.correctionRequest.update({
-      where: { id: params.correctionId },
-      data: {
-        status: params.status,
-        reviewedById: params.reviewerId,
-        reviewedAt: new Date(),
-        reason: params.reason ?? null,
-        ...(onChainTxHash ? { txHash: onChainTxHash } : {}),
-      },
-    })
+      await manager.getRepository(CorrectionRequest).update(
+        { id: params.correctionId },
+        {
+          status: params.status,
+          reviewedById: params.reviewerId,
+          reviewedAt: new Date(),
+          reason: params.reason ?? null,
+          ...(onChainTxHash ? { txHash: onChainTxHash } : {}),
+        }
+      );
+
+      return manager.getRepository(CorrectionRequest).findOne({
+        where: { id: params.correctionId },
+      });
+    }
   );
 
-  const results = await prisma.$transaction(actions);
-  const updatedCorrection = results[results.length - 1];
+  if (!updatedCorrection) {
+    throw new AppError("Correction not found", 404);
+  }
 
   const statusText =
     params.status === CorrectionStatus.APPROVED ? "disetujui" : "ditolak";

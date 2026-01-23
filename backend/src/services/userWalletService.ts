@@ -1,13 +1,15 @@
-import { prisma } from "../config/prisma";
+import { AppDataSource } from "../config/dataSource";
+import { User } from "../entities/User";
 import { AppError } from "../utils/errors";
 
 export const ensureUserWalletAddress = async (
   userId: number,
   walletAddress: string
 ) => {
-  const user = await prisma.user.findUnique({
+  const userRepo = AppDataSource.getRepository(User);
+  const user = await userRepo.findOne({
     where: { id: userId },
-    select: { walletAddress: true },
+    select: { id: true, walletAddress: true },
   });
 
   if (!user) {
@@ -21,8 +23,5 @@ export const ensureUserWalletAddress = async (
     return;
   }
 
-  await prisma.user.update({
-    where: { id: userId },
-    data: { walletAddress },
-  });
+  await userRepo.update({ id: userId }, { walletAddress });
 };

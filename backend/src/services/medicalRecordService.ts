@@ -1,5 +1,7 @@
-import { MedicalRecordStatus, UserRole } from "@prisma/client";
-import { prisma } from "../config/prisma";
+import { MedicalRecordStatus, UserRole } from "../types/enums";
+import { AppDataSource } from "../config/dataSource";
+import { MedicalRecord } from "../entities/MedicalRecord";
+import { Pet } from "../entities/Pet";
 import { AppError } from "../utils/errors";
 import { createNotification } from "./notificationService";
 
@@ -22,7 +24,9 @@ export const createMedicalRecord = async (params: {
   notes?: string;
   evidenceUrl?: string;
 }) => {
-  const pet = await prisma.pet.findUnique({
+  const petRepo = AppDataSource.getRepository(Pet);
+  const recordRepo = AppDataSource.getRepository(MedicalRecord);
+  const pet = await petRepo.findOne({
     where: { id: params.petId },
     select: { id: true, ownerId: true, name: true },
   });
@@ -31,8 +35,8 @@ export const createMedicalRecord = async (params: {
     throw new AppError("Pet not found", 404);
   }
 
-  return prisma.medicalRecord.create({
-    data: {
+  return recordRepo.save(
+    recordRepo.create({
       petId: params.petId,
       clinicId: params.clinicId,
       onChainRecordId: params.onChainRecordId,
@@ -44,8 +48,8 @@ export const createMedicalRecord = async (params: {
       notes: params.notes ?? null,
       evidenceUrl: params.evidenceUrl ?? null,
       status: MedicalRecordStatus.PENDING,
-    },
-  });
+    })
+  );
 };
 
 // List catatan medis untuk satu hewan, dengan validasi akses.
@@ -53,7 +57,9 @@ export const listMedicalRecords = async (
   petId: number,
   user: Express.UserContext
 ) => {
-  const pet = await prisma.pet.findUnique({
+  const petRepo = AppDataSource.getRepository(Pet);
+  const recordRepo = AppDataSource.getRepository(MedicalRecord);
+  const pet = await petRepo.findOne({
     where: { id: petId },
     select: { ownerId: true },
   });
@@ -63,21 +69,24 @@ export const listMedicalRecords = async (
     throw new AppError("Forbidden", 403);
   }
 
-  return prisma.medicalRecord.findMany({
+  return recordRepo.find({
     where: { petId },
-    orderBy: { givenAt: "desc" },
+    order: { givenAt: "DESC" },
   });
 };
 
 // List catatan PENDING khusus klinik yang bersangkutan.
 export const listPendingRecordsForClinic = async (clinicId: number) => {
-  return prisma.medicalRecord.findMany({
-    where: { clinicId, status: MedicalRecordStatus.PENDING },
-    include: {
-      pet: { select: { id: true, name: true, publicId: true } },
-    },
-    orderBy: { givenAt: "desc" },
-  });
+  return AppDataSource.getRepository(MedicalRecord)
+    .createQueryBuilder("record")
+    .leftJoin("record.pet", "pet")
+    .select(["record", "pet.id", "pet.name", "pet.publicId"])
+    .where("record.clinicId = :clinicId", { clinicId })
+    .andWhere("record.status = :status", {
+      status: MedicalRecordStatus.PENDING,
+    })
+    .orderBy("record.givenAt", "DESC")
+    .getMany();
 };
 
 // Verifikasi atau tolak catatan medis yang masih PENDING.
@@ -91,10 +100,13 @@ export const verifyMedicalRecord = async (
     throw new AppError("Status tidak valid", 400);
   }
 
-  const record = await prisma.medicalRecord.findUnique({
-    where: { id: recordId },
-    include: { pet: { select: { ownerId: true, name: true } } },
-  });
+  const recordRepo = AppDataSource.getRepository(MedicalRecord);
+  const record = await recordRepo
+    .createQueryBuilder("record")
+    .leftJoin("record.pet", "pet")
+    .select(["record", "pet.ownerId", "pet.name"])
+    .where("record.id = :recordId", { recordId })
+    .getOne();
 
   if (!record) throw new AppError("Medical record not found", 404);
   if (record.status !== MedicalRecordStatus.PENDING) {
@@ -108,15 +120,19 @@ export const verifyMedicalRecord = async (
     );
   }
 
-  const updated = await prisma.medicalRecord.update({
-    where: { id: recordId },
-    data: {
+  await recordRepo.update(
+    { id: recordId },
+    {
       status,
       verifiedById: reviewerId,
       verifiedAt: new Date(),
       txHash,
-    },
-  });
+    }
+  );
+  const updated = await recordRepo.findOne({ where: { id: recordId } });
+  if (!updated || !record.pet) {
+    throw new AppError("Medical record not found", 404);
+  }
 
   const statusText =
     status === MedicalRecordStatus.VERIFIED ? "terverifikasi" : "ditolak";

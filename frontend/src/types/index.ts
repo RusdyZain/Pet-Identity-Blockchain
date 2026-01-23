@@ -15,6 +15,25 @@ export interface AuthResponse {
   user: AuthUser;
 }
 
+// Profil akun owner untuk halaman pengelolaan akun.
+export interface OwnerProfile extends AuthUser {
+  walletAddress?: string | null;
+}
+
+// Data akun untuk admin management.
+export interface AdminUser {
+  id: number;
+  name: string;
+  email: string;
+  role: UserRole;
+  walletAddress?: string | null;
+}
+
+// Data hewan untuk admin (termasuk pemilik).
+export interface AdminPet extends Pet {
+  owner?: { id: number; name: string; email: string };
+}
+
 // Data utama hewan yang dipakai di dashboard pemilik/klinik.
 export interface Pet {
   id: number;

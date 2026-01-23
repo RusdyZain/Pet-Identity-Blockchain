@@ -6,13 +6,15 @@ import {
   verifyMedicalRecord,
 } from "../services/medicalRecordService";
 import { AppError } from "../utils/errors";
-import { MedicalRecordStatus } from "@prisma/client";
+import { MedicalRecordStatus } from "../types/enums";
 import {
   addMedicalRecord,
   getBackendWalletAddress,
   verifyMedicalRecord as verifyMedicalRecordOnChain,
 } from "../blockchain/petIdentityClient";
-import { prisma } from "../config/prisma";
+import { AppDataSource } from "../config/dataSource";
+import { Pet } from "../entities/Pet";
+import { MedicalRecord } from "../entities/MedicalRecord";
 import { resolveOnChainPetId } from "../blockchain/petIdentityResolver";
 import { buildMedicalRecordDataHash } from "../utils/dataHash";
 import { ensureUserWalletAddress } from "../services/userWalletService";
@@ -32,7 +34,7 @@ export const createMedicalRecordController = async (
       throw new AppError("Missing required fields", 400);
     }
 
-    const pet = await prisma.pet.findUnique({
+    const pet = await AppDataSource.getRepository(Pet).findOne({
       where: { id: petId },
       select: {
         id: true,
@@ -154,7 +156,7 @@ export const verifyMedicalRecordController = async (
     const { status } = req.body;
     if (!status) throw new AppError("Status wajib diisi", 400);
 
-    const record = await prisma.medicalRecord.findUnique({
+    const record = await AppDataSource.getRepository(MedicalRecord).findOne({
       where: { id: recordId },
       select: { onChainRecordId: true },
     });

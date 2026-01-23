@@ -13,5 +13,5 @@ export const ENV = {
 // Peringatan awal bila koneksi database belum diset.
 if (!ENV.databaseUrl) {
   // eslint-disable-next-line no-console
-  console.warn("DATABASE_URL is not set. Prisma may fail to connect.");
+  console.warn("DATABASE_URL is not set. Database connection may fail.");
 }

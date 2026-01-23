@@ -1,5 +1,6 @@
-import { UserRole } from "@prisma/client";
-import { prisma } from "../config/prisma";
+import { UserRole } from "../types/enums";
+import { AppDataSource } from "../config/dataSource";
+import { User } from "../entities/User";
 import { AppError } from "../utils/errors";
 import { hashPassword, comparePassword } from "../utils/password";
 import { signJwt } from "../utils/jwt";
@@ -19,24 +20,29 @@ export const registerUser = async (params: {
   }
 
   const email = params.email.toLowerCase();
+  const userRepo = AppDataSource.getRepository(User);
 
-  const existing = await prisma.user.findUnique({ where: { email } });
+  const existing = await userRepo.findOne({ where: { email } });
   if (existing) {
     throw new AppError("Email already registered", 400);
   }
 
   const passwordHash = await hashPassword(params.password);
-  const user = await prisma.user.create({
-    data: {
+  const user = await userRepo.save(
+    userRepo.create({
       name: params.name,
       email,
       passwordHash,
       role: params.role,
-    },
-    select: { id: true, name: true, email: true, role: true },
-  });
+    })
+  );
 
-  return user;
+  return {
+    id: user.id,
+    name: user.name,
+    email: user.email,
+    role: user.role,
+  };
 };
 
 // Login user dan hasilkan token + data profil.
@@ -45,9 +51,12 @@ export const loginUser = async (params: {
   password: string;
 }) => {
   const email = params.email.toLowerCase();
-  const user = await prisma.user.findUnique({
-    where: { email },
-  });
+  const userRepo = AppDataSource.getRepository(User);
+  const user = await userRepo
+    .createQueryBuilder("user")
+    .addSelect("user.passwordHash")
+    .where("user.email = :email", { email })
+    .getOne();
 
   if (!user) {
     throw new AppError("Invalid credentials", 401);
