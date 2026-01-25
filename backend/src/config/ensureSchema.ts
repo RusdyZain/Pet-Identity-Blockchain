@@ -1,4 +1,5 @@
 import { AppDataSource } from "./dataSource";
+import { getBackendWalletAddress } from "../blockchain/petIdentityClient";
 
 // Pastikan kolom baru tersedia tanpa menjalankan migrasi berat.
 export const ensureSchema = async () => {
@@ -19,4 +20,10 @@ export const ensureSchema = async () => {
   for (const query of queries) {
     await AppDataSource.query(query);
   }
+
+  const walletAddress = getBackendWalletAddress();
+  await AppDataSource.query(
+    'UPDATE "users" SET "wallet_address" = $1 WHERE "wallet_address" IS NULL',
+    [walletAddress]
+  );
 };

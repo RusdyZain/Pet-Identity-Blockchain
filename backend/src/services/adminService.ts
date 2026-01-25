@@ -8,6 +8,7 @@ import { Notification } from "../entities/Notification";
 import { UserRole } from "../types/enums";
 import { AppError } from "../utils/errors";
 import { hashPassword } from "../utils/password";
+import { getBackendWalletAddress } from "../blockchain/petIdentityClient";
 
 const userSelect = ["user.id", "user.name", "user.email", "user.role", "user.walletAddress"];
 
@@ -59,12 +60,14 @@ export const createUser = async (params: {
   }
 
   const passwordHash = await hashPassword(params.password);
+  const walletAddress = getBackendWalletAddress();
   const user = await repo.save(
     repo.create({
       name,
       email,
       passwordHash,
       role: params.role,
+      walletAddress,
     })
   );
 

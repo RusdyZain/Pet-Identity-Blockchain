@@ -4,6 +4,7 @@ import { User } from "../entities/User";
 import { AppError } from "../utils/errors";
 import { hashPassword, comparePassword } from "../utils/password";
 import { signJwt } from "../utils/jwt";
+import { getBackendWalletAddress } from "../blockchain/petIdentityClient";
 
 // Role yang diizinkan untuk daftar mandiri.
 const SELF_REGISTER_ROLES: UserRole[] = [UserRole.OWNER, UserRole.CLINIC];
@@ -28,12 +29,14 @@ export const registerUser = async (params: {
   }
 
   const passwordHash = await hashPassword(params.password);
+  const walletAddress = getBackendWalletAddress();
   const user = await userRepo.save(
     userRepo.create({
       name: params.name,
       email,
       passwordHash,
       role: params.role,
+      walletAddress,
     })
   );
 
