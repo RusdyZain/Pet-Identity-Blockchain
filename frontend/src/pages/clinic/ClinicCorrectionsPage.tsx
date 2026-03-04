@@ -3,6 +3,7 @@ import { correctionApi } from '../../services/apiClient';
 import type { CorrectionRequest } from '../../types';
 import { Loader } from '../../components/common/Loader';
 import { PageHeader } from '../../components/common/PageHeader';
+import { sendPreparedTransaction } from '../../services/walletClient';
 
 // Halaman review koreksi data yang diajukan pemilik.
 export const ClinicCorrectionsPage = () => {
@@ -30,7 +31,13 @@ export const ClinicCorrectionsPage = () => {
 
   // Setujui atau tolak permintaan koreksi.
   const handleReview = async (id: number, status: 'APPROVED' | 'REJECTED') => {
-    await correctionApi.review(String(id), { status });
+    const prepared = await correctionApi.prepareReview(String(id), { status });
+    let txHash: string | undefined;
+    if (prepared.requiresOnChainTx && prepared.txRequest) {
+      const tx = await sendPreparedTransaction(prepared.txRequest);
+      txHash = tx.txHash;
+    }
+    await correctionApi.review(String(id), { status, txHash });
     fetchData();
   };
 

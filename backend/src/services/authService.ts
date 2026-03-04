@@ -1,42 +1,175 @@
+import { randomBytes } from "crypto";
+import { getAddress, verifyMessage } from "ethers";
 import { UserRole } from "../types/enums";
 import { AppDataSource } from "../config/dataSource";
 import { User } from "../entities/User";
 import { AppError } from "../utils/errors";
-import { hashPassword, comparePassword } from "../utils/password";
+import { hashPassword } from "../utils/password";
 import { signJwt } from "../utils/jwt";
-import { getBackendWalletAddress } from "../blockchain/petIdentityClient";
 
-// Role yang diizinkan untuk daftar mandiri.
 const SELF_REGISTER_ROLES: UserRole[] = [UserRole.OWNER, UserRole.CLINIC];
+const WALLET_CHALLENGE_TTL_MS = 5 * 60 * 1000;
 
-// Registrasi user baru (hanya OWNER/CLINIC).
+type WalletChallenge = {
+  message: string;
+  expiresAt: number;
+};
+
+const walletChallengeStore = new Map<string, WalletChallenge>();
+
+const normalizeWalletAddress = (walletAddress: string): string => {
+  const candidate = walletAddress?.trim();
+  if (!candidate) {
+    throw new AppError("walletAddress is required", 400);
+  }
+  try {
+    return getAddress(candidate);
+  } catch (_error) {
+    throw new AppError("Invalid wallet address", 400);
+  }
+};
+
+const cleanupExpiredChallenges = () => {
+  const now = Date.now();
+  for (const [key, challenge] of walletChallengeStore.entries()) {
+    if (challenge.expiresAt <= now) {
+      walletChallengeStore.delete(key);
+    }
+  }
+};
+
+const findUserByWalletAddress = async (walletAddress: string) => {
+  const userRepo = AppDataSource.getRepository(User);
+  return userRepo
+    .createQueryBuilder("user")
+    .where("LOWER(user.walletAddress) = LOWER(:walletAddress)", {
+      walletAddress,
+    })
+    .getOne();
+};
+
+const consumeAndValidateChallenge = (walletAddress: string, message: string) => {
+  cleanupExpiredChallenges();
+  const key = walletAddress.toLowerCase();
+  const challenge = walletChallengeStore.get(key);
+  if (!challenge) {
+    throw new AppError("Wallet challenge not found or already used", 400);
+  }
+  if (challenge.expiresAt <= Date.now()) {
+    walletChallengeStore.delete(key);
+    throw new AppError("Wallet challenge expired", 400);
+  }
+  if (challenge.message !== message) {
+    throw new AppError("Wallet challenge mismatch", 400);
+  }
+  walletChallengeStore.delete(key);
+};
+
+const verifyWalletSignature = (params: {
+  walletAddress: string;
+  message: string;
+  signature: string;
+}) => {
+  const walletAddress = normalizeWalletAddress(params.walletAddress);
+  const message = params.message?.trim();
+  const signature = params.signature?.trim();
+
+  if (!message || !signature) {
+    throw new AppError("Missing wallet authentication payload", 400);
+  }
+
+  consumeAndValidateChallenge(walletAddress, message);
+
+  let recoveredAddress: string;
+  try {
+    recoveredAddress = getAddress(verifyMessage(message, signature));
+  } catch (_error) {
+    throw new AppError("Invalid wallet signature", 401);
+  }
+
+  if (recoveredAddress.toLowerCase() !== walletAddress.toLowerCase()) {
+    throw new AppError("Signature does not match wallet address", 401);
+  }
+
+  return walletAddress;
+};
+
+export const createWalletChallenge = (walletAddress: string) => {
+  cleanupExpiredChallenges();
+  const normalizedAddress = normalizeWalletAddress(walletAddress);
+  const nonce = randomBytes(16).toString("hex");
+  const issuedAt = new Date();
+  const expiresAt = new Date(issuedAt.getTime() + WALLET_CHALLENGE_TTL_MS);
+
+  const message = [
+    "PetIdentity Wallet Authentication",
+    `Wallet: ${normalizedAddress}`,
+    `Nonce: ${nonce}`,
+    `Issued At: ${issuedAt.toISOString()}`,
+    `Expires At: ${expiresAt.toISOString()}`,
+  ].join("\n");
+
+  walletChallengeStore.set(normalizedAddress.toLowerCase(), {
+    message,
+    expiresAt: expiresAt.getTime(),
+  });
+
+  return {
+    walletAddress: normalizedAddress,
+    message,
+    expiresAt: expiresAt.toISOString(),
+  };
+};
+
 export const registerUser = async (params: {
   name: string;
   email: string;
-  password: string;
   role: UserRole;
+  walletAddress: string;
+  message: string;
+  signature: string;
 }) => {
   if (!SELF_REGISTER_ROLES.includes(params.role)) {
     throw new AppError("Only OWNER or CLINIC can self-register", 400);
   }
 
-  const email = params.email.toLowerCase();
-  const userRepo = AppDataSource.getRepository(User);
-
-  const existing = await userRepo.findOne({ where: { email } });
-  if (existing) {
-    throw new AppError("Email already registered", 400);
+  const name = params.name?.trim();
+  if (!name) {
+    throw new AppError("Name is required", 400);
   }
 
-  const passwordHash = await hashPassword(params.password);
-  const walletAddress = getBackendWalletAddress();
+  const email = params.email?.trim().toLowerCase();
+  if (!email) {
+    throw new AppError("Email is required", 400);
+  }
+
+  const verifiedWalletAddress = verifyWalletSignature({
+    walletAddress: params.walletAddress,
+    message: params.message,
+    signature: params.signature,
+  });
+
+  const userRepo = AppDataSource.getRepository(User);
+  const [existingByEmail, existingByWallet] = await Promise.all([
+    userRepo.findOne({ where: { email } }),
+    findUserByWalletAddress(verifiedWalletAddress),
+  ]);
+
+  if (existingByEmail) {
+    throw new AppError("Email already registered", 400);
+  }
+  if (existingByWallet) {
+    throw new AppError("Wallet already registered", 400);
+  }
+
+  const passwordHash = await hashPassword(randomBytes(24).toString("hex"));
   const user = await userRepo.save(
     userRepo.create({
-      name: params.name,
+      name,
       email,
       passwordHash,
       role: params.role,
-      walletAddress,
+      walletAddress: verifiedWalletAddress,
     })
   );
 
@@ -45,32 +178,31 @@ export const registerUser = async (params: {
     name: user.name,
     email: user.email,
     role: user.role,
+    walletAddress: user.walletAddress,
   };
 };
 
-// Login user dan hasilkan token + data profil.
 export const loginUser = async (params: {
-  email: string;
-  password: string;
+  walletAddress: string;
+  message: string;
+  signature: string;
 }) => {
-  const email = params.email.toLowerCase();
-  const userRepo = AppDataSource.getRepository(User);
-  const user = await userRepo
-    .createQueryBuilder("user")
-    .addSelect("user.passwordHash")
-    .where("user.email = :email", { email })
-    .getOne();
+  const verifiedWalletAddress = verifyWalletSignature({
+    walletAddress: params.walletAddress,
+    message: params.message,
+    signature: params.signature,
+  });
 
+  const user = await findUserByWalletAddress(verifiedWalletAddress);
   if (!user) {
-    throw new AppError("Invalid credentials", 401);
+    throw new AppError("Wallet is not registered", 404);
   }
 
-  const isValid = await comparePassword(params.password, user.passwordHash);
-  if (!isValid) {
-    throw new AppError("Invalid credentials", 401);
-  }
-
-  const token = signJwt({ userId: user.id, role: user.role });
+  const token = signJwt({
+    userId: user.id,
+    role: user.role,
+    walletAddress: verifiedWalletAddress,
+  });
 
   return {
     token,
@@ -79,6 +211,7 @@ export const loginUser = async (params: {
       name: user.name,
       email: user.email,
       role: user.role,
+      walletAddress: user.walletAddress,
     },
   };
 };

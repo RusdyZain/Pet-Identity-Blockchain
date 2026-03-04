@@ -8,7 +8,7 @@ import { Notification } from "../entities/Notification";
 import { UserRole } from "../types/enums";
 import { AppError } from "../utils/errors";
 import { hashPassword } from "../utils/password";
-import { getBackendWalletAddress } from "../blockchain/petIdentityClient";
+import { getAddress } from "ethers";
 
 const userSelect = ["user.id", "user.name", "user.email", "user.role", "user.walletAddress"];
 
@@ -41,6 +41,7 @@ export const createUser = async (params: {
   email: string;
   password: string;
   role: UserRole;
+  walletAddress?: string;
 }) => {
   const name = params.name.trim();
   const email = params.email.trim().toLowerCase();
@@ -59,15 +60,33 @@ export const createUser = async (params: {
     throw new AppError("Email already registered", 400);
   }
 
+  let normalizedWalletAddress: string | null = null;
+  if (typeof params.walletAddress === "string" && params.walletAddress.trim()) {
+    try {
+      normalizedWalletAddress = getAddress(params.walletAddress.trim());
+    } catch (_error) {
+      throw new AppError("Wallet address tidak valid", 400);
+    }
+    const existingWallet = await repo
+      .createQueryBuilder("user")
+      .select(["user.id"])
+      .where("LOWER(user.walletAddress) = LOWER(:walletAddress)", {
+        walletAddress: normalizedWalletAddress,
+      })
+      .getOne();
+    if (existingWallet) {
+      throw new AppError("Wallet already registered", 400);
+    }
+  }
+
   const passwordHash = await hashPassword(params.password);
-  const walletAddress = getBackendWalletAddress();
   const user = await repo.save(
     repo.create({
       name,
       email,
       passwordHash,
       role: params.role,
-      walletAddress,
+      walletAddress: normalizedWalletAddress,
     })
   );
 
@@ -87,6 +106,7 @@ export const updateUser = async (
     email?: string;
     password?: string;
     role?: UserRole;
+    walletAddress?: string;
   }
 ) => {
   const repo = AppDataSource.getRepository(User);
@@ -124,6 +144,32 @@ export const updateUser = async (
       throw new AppError("Role tidak valid", 400);
     }
     data.role = params.role;
+  }
+
+  if (typeof params.walletAddress === "string") {
+    const walletAddress = params.walletAddress.trim();
+    if (!walletAddress) {
+      data.walletAddress = null;
+    } else {
+      let normalizedWallet: string;
+      try {
+        normalizedWallet = getAddress(walletAddress);
+      } catch (_error) {
+        throw new AppError("Wallet address tidak valid", 400);
+      }
+      const existingWallet = await repo
+        .createQueryBuilder("user")
+        .select(["user.id"])
+        .where("LOWER(user.walletAddress) = LOWER(:walletAddress)", {
+          walletAddress: normalizedWallet,
+        })
+        .andWhere("user.id <> :userId", { userId })
+        .getOne();
+      if (existingWallet) {
+        throw new AppError("Wallet already registered", 400);
+      }
+      data.walletAddress = normalizedWallet;
+    }
   }
 
   if (typeof params.password === "string") {

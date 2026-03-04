@@ -7,6 +7,7 @@ export interface AuthUser {
   name: string;
   email: string;
   role: UserRole;
+  walletAddress?: string | null;
 }
 
 // Bentuk respons login yang membawa token dan profil pengguna.
@@ -38,6 +39,11 @@ export interface AdminPet extends Pet {
 export interface Pet {
   id: number;
   publicId: string;
+  onChainPetId?: number | null;
+  dataHash?: string | null;
+  txHash?: string | null;
+  blockNumber?: number | null;
+  blockTimestamp?: string | null;
   name: string;
   species: string;
   breed: string;
@@ -51,6 +57,11 @@ export interface Pet {
 // Catatan vaksinasi/medis untuk satu hewan.
 export interface MedicalRecord {
   id: number;
+  onChainRecordId?: number | null;
+  dataHash?: string | null;
+  txHash?: string | null;
+  blockNumber?: number | null;
+  blockTimestamp?: string | null;
   vaccineType: string;
   batchNumber: string;
   givenAt: string;
@@ -65,6 +76,10 @@ export interface MedicalRecord {
 export interface CorrectionRequest {
   id: number;
   petId: number;
+  dataHash?: string | null;
+  txHash?: string | null;
+  blockNumber?: number | null;
+  blockTimestamp?: string | null;
   fieldName: string;
   oldValue: string;
   newValue: string;
@@ -96,4 +111,9 @@ export interface TraceResult {
   breed: string;
   ownerName: string;
   vaccines: Array<{ vaccineType: string; lastGivenAt: string; status: string }>;
+}
+
+export interface PreparedTxRequest {
+  to: string;
+  data: string;
 }

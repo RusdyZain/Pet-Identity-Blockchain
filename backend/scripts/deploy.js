@@ -5,6 +5,7 @@ const { ethers, network } = require('hardhat');
 // Script deploy kontrak dan simpan info hasil deploy ke file.
 async function main() {
   const [deployer] = await ethers.getSigners();
+  const networkInfo = await ethers.provider.getNetwork();
   console.log('Deploying with account:', deployer.address);
 
   // Compile + deploy kontrak.
@@ -20,6 +21,7 @@ async function main() {
   // Sepolia is a test environment used only as a deploy target here.
   const output = {
     network: network.name,
+    chainId: Number(networkInfo.chainId),
     address,
     deployedAt: new Date().toISOString(),
   };

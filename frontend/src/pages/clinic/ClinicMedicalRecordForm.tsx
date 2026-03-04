@@ -4,6 +4,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { medicalRecordApi } from '../../services/apiClient';
 import { TextField } from '../../components/forms/TextField';
 import { PageHeader } from '../../components/common/PageHeader';
+import { sendPreparedTransaction } from '../../services/walletClient';
 
 // Form penambahan catatan vaksin oleh klinik.
 export const ClinicMedicalRecordForm = () => {
@@ -35,11 +36,16 @@ export const ClinicMedicalRecordForm = () => {
     setSuccess('');
     setLoading(true);
     try {
-      await medicalRecordApi.create(id, form);
-      setSuccess('Catatan medis berhasil dibuat dan menunggu verifikasi.');
+      const prepared = await medicalRecordApi.prepareCreate(id, form);
+      const { txHash } = await sendPreparedTransaction(prepared.txRequest);
+      await medicalRecordApi.create(id, {
+        ...form,
+        txHash,
+      });
+      setSuccess(`Catatan medis berhasil dibuat. txHash: ${txHash}`);
       setTimeout(() => navigate(`/clinic/pets/${id}`), 1200);
     } catch (err: any) {
-      setError(err?.response?.data?.message ?? 'Gagal menyimpan catatan medis');
+      setError(err?.response?.data?.message ?? err?.message ?? 'Gagal menyimpan catatan medis');
     } finally {
       setLoading(false);
     }

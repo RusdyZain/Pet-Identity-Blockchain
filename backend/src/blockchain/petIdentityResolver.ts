@@ -5,7 +5,6 @@ import {
   getPet,
   getPetIdByHash,
   isLocalBlockchain,
-  registerPet,
 } from "./petIdentityClient";
 import { buildPetDataHash } from "../utils/dataHash";
 
@@ -52,13 +51,6 @@ const isPetMissingError = (error: unknown): boolean => {
   return lower.includes("pet does not exist") || lower.includes("pet not found");
 };
 
-const isDataHashAlreadyUsedError = (error: unknown): boolean => {
-  const message = getBlockchainErrorMessage(error);
-  return typeof message === "string"
-    ? message.toLowerCase().includes("datahash already used")
-    : false;
-};
-
 const tryGetPetIdByHash = async (
   dataHash: string
 ): Promise<number | null> => {
@@ -76,7 +68,6 @@ const tryGetPetIdByHash = async (
 export const resolveOnChainPetId = async (
   pet: PetChainPayload
 ): Promise<number> => {
-  const localChain = await isLocalBlockchain();
   const storedId =
     typeof pet.onChainPetId === "number" && pet.onChainPetId > 0
       ? pet.onChainPetId
@@ -91,10 +82,6 @@ export const resolveOnChainPetId = async (
         throw error;
       }
     }
-  }
-
-  if (!localChain) {
-    throw new AppError("Pet is not registered on blockchain", 400);
   }
 
   const resolvedDataHash =
@@ -119,31 +106,12 @@ export const resolveOnChainPetId = async (
     return existingId;
   }
 
-  try {
-    const { petId: newOnChainPetId, receipt } = await registerPet(
-      resolvedDataHash
+  if (await isLocalBlockchain()) {
+    throw new AppError(
+      "Pet belum terdaftar di blockchain lokal. Kirim transaksi registerPet dari wallet pengguna terlebih dahulu.",
+      400
     );
-    const resolvedId = Number(newOnChainPetId);
-    await AppDataSource.getRepository(Pet).update(
-      { id: pet.id },
-      {
-        onChainPetId: resolvedId,
-        dataHash: resolvedDataHash,
-        txHash: receipt.hash,
-      }
-    );
-    return resolvedId;
-  } catch (error) {
-    if (isDataHashAlreadyUsedError(error)) {
-      const fallbackId = await tryGetPetIdByHash(resolvedDataHash);
-      if (fallbackId !== null) {
-        await AppDataSource.getRepository(Pet).update(
-          { id: pet.id },
-          { onChainPetId: fallbackId, dataHash: resolvedDataHash }
-        );
-        return fallbackId;
-      }
-    }
-    throw error;
   }
+
+  throw new AppError("Pet is not registered on blockchain", 400);
 };

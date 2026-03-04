@@ -1,299 +1,399 @@
-# Pet-Identity-Blockchain
+# Web-Blockchain Pet Identity Registry
 
-Platform skripsi yang menggabungkan backend Node.js/Express + frontend React untuk mengelola identitas digital hewan peliharaan berbasis blockchain. Setiap registrasi hewan, catatan vaksin, koreksi, dan transfer kepemilikan tersimpan di PostgreSQL sekaligus disinkronkan ke smart contract `PetIdentityRegistry` (Solidity).
+Dokumentasi utama proyek skripsi untuk sistem identitas hewan berbasis wallet + blockchain.
 
----
+## 1. Ringkasan
+Sistem ini mengelola data hewan, catatan medis, transfer kepemilikan, notifikasi, dan trace publik dengan pola:
+- Data detail disimpan di PostgreSQL.
+- Bukti integritas transaksi disimpan di blockchain (hash + tx metadata).
+- Login memakai wallet MetaMask (challenge + signature), bukan password.
 
-## 0. Fitur platform saat ini
+## 2. Latar Belakang, Masalah, Tujuan, Batasan
+### 2.1 Latar Belakang
+Pencatatan data hewan sering tersebar dan sulit diaudit saat terjadi koreksi atau perubahan kepemilikan.
 
-### Autentikasi & otorisasi
-- Registrasi + login dengan JWT dan hashing kata sandi (`backend/src/controllers/authController.ts`) untuk tiga peran: **OWNER**, **CLINIC**, dan **ADMIN**.
-- Middleware `authenticate` + `authorize` (`backend/src/middlewares/authMiddleware.ts`) memastikan setiap endpoint mengikuti batasan role-based access control.
+### 2.2 Rumusan Masalah
+1. Bagaimana autentikasi pengguna tanpa password konvensional.
+2. Bagaimana membuktikan aksi data yang penting telah tercatat di blockchain.
+3. Bagaimana menjaga sinkronisasi antara data aplikasi (DB) dan data bukti (on-chain).
 
-### Modul Pemilik (Owner)
-- Dashboard React (`frontend/src/pages/owner/OwnerDashboard.tsx`) menampilkan daftar hewan, status vaksinasi, dan aksi cepat.
-- Form registrasi hewan baru (`OwnerNewPet.tsx`) memicu `createPetController` yang otomatis mengirim data ke blockchain dan PostgreSQL sekaligus membuat `publicId` unik.
-- Halaman detail (`OwnerPetDetail.tsx`) memperlihatkan profil lengkap, daftar medical record, dan tombol untuk memulai transfer kepemilikan.
-- Fitur permintaan koreksi (`OwnerCorrectionForm.tsx`) untuk mengganti atribut tertentu, lengkap dengan histori review.
-- Riwayat dan konfirmasi transfer (`OwnerTransferPage.tsx`) agar pemilik lama/baru dapat menerima atau menolak perpindahan kepemilikan.
-- Modul catatan medis (`OwnerMedicalRecordsPage.tsx`) hanya menampilkan data terverifikasi ke pemilik terkait.
-- Pusat notifikasi (`OwnerNotificationsPage.tsx`) mengambil data dari `backend/src/services/notificationService.ts`.
+### 2.3 Tujuan
+1. Menerapkan wallet-based authentication.
+2. Menyimpan bukti transaksi on-chain (`txHash`, `blockNumber`, `blockTimestamp`) di DB.
+3. Menyediakan alur operasional owner, clinic, admin, dan verifikasi publik.
 
-### Modul Klinik
-- Dashboard klinik (`frontend/src/pages/clinic/ClinicDashboard.tsx`) menampilkan pasien aktif dan catatan menunggu verifikasi.
-- Klinik dapat menambahkan catatan vaksin lengkap dengan nomor batch dan bukti (`ClinicMedicalRecordForm.tsx`) yang akan mencatat transaksi on-chain melalui `addMedicalRecord`.
-- Daftar catatan pending (`ClinicPendingRecords.tsx`) dan aksi verifikasi/penolakan memanfaatkan `verifyMedicalRecordController`.
-- Klinik juga memantau dan memberi keputusan terhadap permintaan koreksi pemilik (`ClinicCorrectionsPage.tsx`).
+### 2.4 Batasan
+1. Blockchain dipakai sebagai lapisan bukti integritas, bukan penyimpanan data detail penuh.
+2. Data sensitif dan query kompleks tetap di PostgreSQL.
+3. Konsensus blockchain tidak diimplementasikan manual, hanya memakai jaringan PoA/PoS yang sudah ada.
 
-### Modul Admin & publik
-- Admin dashboard (`frontend/src/pages/admin/AdminDashboard.tsx`) memanggil `adminSummaryController` untuk mengetahui total pet, catatan medis, dan transfer terbaru.
-- Endpoint publik `GET /trace/:publicId` + halaman `frontend/src/pages/public/TracePage.tsx` memungkinkan siapa pun memeriksa keaslian data hewan bermodal `publicId` (mis. dari QR code).
+## 3. Kebutuhan Sistem
+### 3.1 Kebutuhan Fungsional
+1. Login dan register berbasis wallet.
+2. Registrasi pet, catatan medis, dan review koreksi dengan transaksi on-chain.
+3. Simpan metadata transaksi on-chain di DB.
+4. Otorisasi role: OWNER, CLINIC, ADMIN, PUBLIC_VERIFIER.
+5. Trace publik berdasarkan `publicId`.
 
-### Notifikasi & jejak data
-- Semua peristiwa penting (transfer selesai, koreksi disetujui, catatan vaksin diverifikasi) akan memanggil `createNotification` sehingga pengguna melihat status terbaru saat membuka aplikasi.
-- Riwayat kepemilikan (`getOwnershipHistory`) dan histori koreksi (`listCorrections`) memperkaya audit trail internal.
+### 3.2 Kebutuhan Non-Fungsional
+1. Integritas data: verifikasi event log dan sender transaction.
+2. Keamanan: challenge auth sekali pakai + masa berlaku.
+3. Auditabilitas: semua aksi penting menyimpan `txHash`, block info.
+4. Maintainability: arsitektur frontend-backend terpisah.
 
-### Blockchain & alat debugging
-- Registrasi hewan dan catatan vaksin langsung memanggil kontrak `PetIdentityRegistry` melalui `petIdentityClient`.
-- Router `backend/src/routes/debugBlockchain.ts` beserta halaman `frontend/src/pages/BlockchainSimulatorPage.tsx` menyediakan antarmuka manual untuk ping jaringan, register pet on-chain, dan membaca data langsung dari smart contract selama proses pengujian.
-
----
-
-## 1. Arsitektur & Tech Stack
-
-| Lapisan          | Teknologi utama                                                                                           |
-|------------------|-----------------------------------------------------------------------------------------------------------|
-| Smart contract   | Solidity ^0.8.20, Hardhat + @nomicfoundation/hardhat-toolbox, jaringan Hardhat lokal & Sepolia testnet    |
-| Backend API      | Node.js 24, Express 5, TypeScript, Prisma ORM, PostgreSQL, JWT auth                                       |
-| Frontend         | React 19, Vite, TypeScript, Tailwind CSS                                                                  |
-| Integrasi chain  | `ethers` v6, file helper `backend/src/blockchain/petIdentityClient.ts`                                    |
-
-Alur utama:
-1. Pengguna registrasi hewan via UI (React).
-2. Backend menyimpan data di PostgreSQL dan memanggil kontrak `registerPet`, menyimpan `onChainPetId` yang dikembalikan event `PetRegistered`.
-3. Catatan medis baru memanggil `addMedicalRecord` dengan `onChainPetId` yang tersimpan di database.
-4. Debug/troubleshooting bisa memakai router `backend/src/routes/debugBlockchain.ts` untuk mencoba call langsung ke chain.
-
----
-
-## 2. Persiapan lingkungan
-
-- **Node.js 24.x** dan npm 10+ (gunakan `nvs use 24` atau `nvm use 24` supaya konsisten).
-- **PostgreSQL 14+** dan koneksi database yang dapat diakses lokal.
-- **Git**, **pnpm/npm** sesuai preferensi (repo memakai npm).
-- Akses RPC Sepolia + private key jika ingin deploy ke testnet.
-
-Cek versi runtime:
-```powershell
-node -v    # v24.x.x
-npm -v
+## 4. Perancangan Sistem
+### 4.1 Diagram Arsitektur
+```mermaid
+flowchart LR
+    U[User: Owner/Clinic/Admin] --> FE[Frontend React + Vite]
+    FE --> MM[MetaMask]
+    FE --> BE[Backend Express + TypeORM]
+    BE --> DB[(PostgreSQL)]
+    MM --> RPC[RPC Node: Hardhat/Ganache/Besu/Sepolia/Goerli]
+    BE --> RPC
+    RPC --> SC[(PetIdentityRegistry Smart Contract)]
 ```
 
----
+### 4.2 Diagram Use Case
+```mermaid
+flowchart TB
+    Owner[OWNER] --> UC1[Register/Login Wallet]
+    Owner --> UC2[Registrasi Pet]
+    Owner --> UC3[Ajukan Koreksi]
+    Owner --> UC4[Transfer Kepemilikan]
+    Owner --> UC5[Lihat Notifikasi]
 
-## 3. Struktur repository
+    Clinic[CLINIC] --> UC1
+    Clinic --> UC6[Buat Catatan Medis]
+    Clinic --> UC7[Verifikasi Catatan Medis]
+    Clinic --> UC8[Review Koreksi]
 
+    Admin[ADMIN] --> UC1
+    Admin --> UC9[Kelola User]
+    Admin --> UC10[Lihat Ringkasan Sistem]
+
+    Public[PUBLIK] --> UC11[Trace by PublicId]
 ```
-├─ backend/           # Express + Prisma API, blockchain client, Hardhat project
-│  ├─ contracts/      # PetIdentityRegistry.sol
-│  ├─ scripts/        # Hardhat deploy scripts
-│  ├─ src/
-│  │  ├─ blockchain/  # ethers.js client (petIdentityClient.ts)
-│  │  ├─ controllers/ # pet, medical record, dll
-│  │  ├─ routes/      # termasuk debugBlockchain.ts
-│  │  └─ services/
-│  └─ hardhat.config.js
-└─ frontend/          # Vite + React client
+
+### 4.3 Sequence Diagram Wallet Authentication
+```mermaid
+sequenceDiagram
+    participant U as User
+    participant FE as Frontend
+    participant MM as MetaMask
+    participant BE as Backend
+    participant DB as PostgreSQL
+
+    U->>FE: Connect Wallet
+    FE->>MM: eth_requestAccounts
+    MM-->>FE: walletAddress
+    FE->>BE: POST /auth/wallet/challenge
+    BE-->>FE: message + nonce + expiresAt
+    FE->>MM: personal_sign(message)
+    MM-->>FE: signature
+    FE->>BE: POST /auth/register or /auth/login
+    BE->>BE: verify signature + challenge
+    alt Register
+      BE->>DB: insert user + walletAddress
+      BE-->>FE: user
+    else Login
+      BE->>DB: find user by walletAddress
+      BE-->>FE: JWT + user
+    end
 ```
 
----
+### 4.4 Sequence Diagram Aksi On-Chain (Contoh Registrasi Pet)
+```mermaid
+sequenceDiagram
+    participant FE as Frontend
+    participant MM as MetaMask
+    participant BE as Backend
+    participant RPC as RPC Node
+    participant DB as PostgreSQL
 
-## 4. Backend setup (Express + Prisma)
+    FE->>BE: POST /pets/prepare-registration
+    BE-->>FE: txRequest(to,data) + dataHash + publicId
+    FE->>MM: eth_sendTransaction(txRequest)
+    MM->>RPC: submit tx
+    RPC-->>FE: txHash
+    FE->>FE: wait receipt mined
+    FE->>BE: POST /pets (payload + txHash)
+    BE->>RPC: getTransactionReceipt(txHash)
+    BE->>BE: parse PetRegistered event + validate sender/dataHash
+    BE->>DB: save pet + tx metadata
+    BE-->>FE: response success
+```
 
-### 4.1 Environment variables
-Copy `backend/.env.example` ke `.env` dan isi:
+### 4.5 ERD Ringkas
+```mermaid
+erDiagram
+    USERS ||--o{ PETS : owns
+    USERS ||--o{ MEDICAL_RECORDS : clinic_creates
+    USERS ||--o{ MEDICAL_RECORDS : verifies
+    USERS ||--o{ CORRECTION_REQUESTS : submits
+    USERS ||--o{ CORRECTION_REQUESTS : reviews
+    USERS ||--o{ NOTIFICATIONS : receives
+    PETS ||--o{ MEDICAL_RECORDS : has
+    PETS ||--o{ CORRECTION_REQUESTS : has
+    PETS ||--o{ OWNERSHIP_HISTORY : tracks
+
+    USERS {
+      int id
+      string email
+      string role
+      string wallet_address
+    }
+    PETS {
+      int id
+      string public_id
+      int on_chain_pet_id
+      string data_hash
+      string tx_hash
+      int block_number
+      datetime block_timestamp
+    }
+    MEDICAL_RECORDS {
+      int id
+      int on_chain_record_id
+      string data_hash
+      string tx_hash
+      int block_number
+      datetime block_timestamp
+    }
+    CORRECTION_REQUESTS {
+      int id
+      string data_hash
+      string tx_hash
+      int block_number
+      datetime block_timestamp
+    }
+```
+
+## 5. Cara Kerja Wallet Authentication (Sederhana)
+1. Frontend ambil wallet address dari MetaMask.
+2. Backend membuat challenge message unik (`nonce`) yang berlaku 5 menit.
+3. User menandatangani challenge di MetaMask.
+4. Frontend kirim `walletAddress + message + signature` ke backend.
+5. Backend recover address dari signature.
+6. Jika cocok:
+   - Register: simpan user baru.
+   - Login: cari user berdasarkan wallet address, lalu buat JWT.
+7. Challenge hanya sekali pakai. Jika sudah dipakai/expired, harus minta challenge baru.
+
+## 6. Sinkronisasi On-Chain dan Database
+Pola write endpoint penting:
+1. Endpoint `prepare` mengembalikan `txRequest` (to + data).
+2. Frontend kirim transaksi dengan MetaMask dan menunggu mined.
+3. Frontend kirim `txHash` ke endpoint final backend.
+4. Backend validasi:
+   - transaksi benar ke kontrak yang benar,
+   - status receipt sukses,
+   - sender tx sama dengan wallet user login,
+   - event log sesuai data hash dan entity id.
+5. Backend simpan data ke DB plus:
+   - `txHash`
+   - `blockNumber`
+   - `blockTimestamp`
+
+## 7. Komponen Frontend dan Backend
+### 7.1 Frontend
+- `frontend/src/services/walletClient.ts`: connect wallet, sign challenge, send tx, wait receipt.
+- `frontend/src/services/apiClient.ts`: seluruh REST client.
+- `frontend/src/context/AuthContext.tsx`: state login JWT.
+- `frontend/src/pages/auth/*`: register/login wallet.
+
+### 7.2 Backend
+- `backend/src/services/authService.ts`: challenge, verify signature, register/login.
+- `backend/src/blockchain/petIdentityClient.ts`: prepare tx + verify receipt/event.
+- `backend/src/controllers/*`: implementasi flow per modul.
+- `backend/src/config/ensureSchema.ts`: penyesuaian schema otomatis saat startup.
+
+## 8. Daftar Endpoint Utama
+### 8.1 Auth
+- `POST /auth/wallet/challenge`
+- `POST /auth/register`
+- `POST /auth/login`
+
+### 8.2 Pet
+- `POST /pets/prepare-registration`
+- `POST /pets`
+- `GET /pets`
+- `GET /pets/:id`
+- `GET /pets/:petId/ownership-history`
+
+### 8.3 Medical Record
+- `POST /pets/:petId/medical-records/prepare`
+- `POST /pets/:petId/medical-records`
+- `PATCH /medical-records/:id/verify/prepare`
+- `PATCH /medical-records/:id/verify`
+
+### 8.4 Correction
+- `GET /corrections`
+- `PATCH /corrections/:id/prepare`
+- `PATCH /corrections/:id`
+
+### 8.5 Lainnya
+- `GET /notifications`
+- `PATCH /notifications/:id/read`
+- `GET /trace/:publicId`
+- `GET /admin/summary`
+- `GET|POST|PATCH|DELETE /admin/users`
+- `GET /admin/pets`
+
+## 9. Persiapan Lingkungan
+1. Node.js 20+ (disarankan 24 sesuai pengembangan repo).
+2. PostgreSQL aktif.
+3. MetaMask di browser.
+4. RPC blockchain (local/testnet).
+
+## 10. Konfigurasi Environment
+### 10.1 Backend `.env`
+Minimal:
 ```ini
-DATABASE_URL=postgresql://user:password@localhost:5432/pet_identity
-JWT_SECRET=supersecret
+DATABASE_URL=postgresql://USER:PASSWORD@localhost:5432/DB_NAME
+JWT_SECRET=your_jwt_secret
 PORT=4000
-
-# Blockchain client
-BLOCKCHAIN_RPC_URL=https://sepolia.infura.io/v3/XXXX
-BLOCKCHAIN_PRIVATE_KEY=0xabcdef...
-PET_IDENTITY_ADDRESS=0xDeployedContractAddress
+BLOCKCHAIN_RPC_URL=http://127.0.0.1:8545
+PET_IDENTITY_ADDRESS=0xYourDeployedContract
 ```
-Untuk Hardhat Sepolia, tambahkan juga:
+
+Untuk deploy Hardhat (opsional sesuai target):
 ```ini
-SEPOLIA_RPC_URL=https://sepolia.infura.io/v3/XXXX
-SEPOLIA_PRIVATE_KEY=0xabcdef...
-```
-Catatan:
-- `BLOCKCHAIN_RPC_URL` adalah jaringan runtime yang dipakai backend saat berinteraksi dengan kontrak (bisa menunjuk ke Hardhat lokal atau Sepolia testnet).
-- `SEPOLIA_*` hanya dipakai oleh Hardhat untuk deploy dengan `--network sepolia`. Sepolia adalah test environment, bukan metode pengujian atau mekanisme konsensus.
-
-### 4.2 Instalasi & migrasi
-```powershell
-cd backend
-npm install
-npx prisma migrate dev
-npm run dev         # jalankan API di http://localhost:4000
+DEPLOYER_PRIVATE_KEY=0x...
+SEPOLIA_RPC_URL=https://...
+GOERLI_RPC_URL=https://...
+GANACHE_RPC_URL=http://127.0.0.1:7545
+GANACHE_CHAIN_ID=1337
+BESU_CLIQUE_RPC_URL=http://127.0.0.1:8545
+BESU_CLIQUE_CHAIN_ID=1337
 ```
 
-### 4.3 Script npm penting
-| Perintah        | Deskripsi                                      |
-|-----------------|------------------------------------------------|
-| `npm run dev`   | Server dev dengan ts-node-dev                  |
-| `npm run build` | Build TypeScript → `dist/`                     |
-| `npm start`     | Menjalankan build hasil `npm run build`        |
-| `npx prisma ...`| Akses Prisma CLI (studio, migrate, dll)        |
-
----
-
-## 5. Frontend setup (React + Vite)
-
-### 5.1 Environment
-`frontend/.env`:
+### 10.2 Frontend `.env`
 ```ini
 VITE_API_URL=http://localhost:4000
 ```
 
-### 5.2 Instalasi & jalankan
+## 11. Instalasi dan Migrasi
+### 11.1 Backend
+```powershell
+cd backend
+npm install
+npx prisma migrate deploy
+npm run chain:compile
+```
+
+### 11.2 Frontend
 ```powershell
 cd frontend
 npm install
-npm run dev        # http://localhost:5173
 ```
 
-Tailwind & PostCSS sudah dikonfigurasi di `tailwind.config.js` dan `postcss.config.js`.
-
----
-
-## 6. Smart contract & Hardhat
-
-Kontrak utama: `backend/contracts/PetIdentityRegistry.sol` (Solidity ^0.8.20). Menyimpan struktur `Pet` dan `MedicalRecord`, memancarkan event `PetRegistered`, `MedicalRecordAdded`, dsb.
-
-### 6.1 Instalasi Hardhat & toolbox
-```bash
+## 12. Deploy Smart Contract
+### 12.1 Local Hardhat
+```powershell
 cd backend
-npm install --save-dev hardhat@^2.27.0 @nomicfoundation/hardhat-toolbox
-npm install ethers dotenv
-npx hardhat        # (opsional) generate file default
+npm run deploy:localhost
 ```
-`hardhat.config.js` sudah memuat jaringan `hardhat`, `localhost`, dan `sepolia` dengan dotenv.
 
-### 6.2 Perintah penting Hardhat
-```bash
-# compile kontrak
-npx hardhat compile
+### 12.2 PoS Testnet
+```powershell
+cd backend
+npm run deploy:sepolia
+# atau
+npm run deploy:goerli
+```
 
-# jalankan node lokal
+### 12.3 PoA Local
+```powershell
+cd backend
+npm run deploy:ganache
+# atau
+npm run deploy:besu
+```
+
+Setelah deploy, update `PET_IDENTITY_ADDRESS` dengan alamat kontrak terbaru.
+
+## 13. Cara Menjalankan Aplikasi
+### 13.1 Full Local dari Nol (4 terminal)
+1. Terminal A:
+```powershell
+cd backend
 npx hardhat node
-
-# deploy ke node lokal (terminal lain)
-npx hardhat run scripts/deploy.js --network localhost
-
-# deploy ke Sepolia
-npx hardhat run scripts/deploy.js --network sepolia
 ```
-Output deploy disimpan di `backend/deployed/petIdentity.json`. Isi alamat hasil deploy ke variabel `PET_IDENTITY_ADDRESS` di `.env` agar backend bisa terhubung.
+2. Terminal B:
+```powershell
+cd backend
+npm run deploy:localhost
+```
+3. Terminal C:
+```powershell
+cd backend
+npm run dev
+```
+4. Terminal D:
+```powershell
+cd frontend
+npm run dev
+```
 
-### 6.3 Debug router (opsional)
-`backend/src/routes/debugBlockchain.ts` menyediakan endpoint:
-- `POST /debug/register-pet` → memanggil `registerPet` langsung.
-- `GET /debug/pet/:id` → baca data dari kontrak.
-Tambahkan ke app Express: `app.use('/api', debugBlockchainRouter);`
+### 13.2 Harian (tanpa deploy ulang kontrak)
+Biasanya cukup 3 terminal: node blockchain, backend, frontend.
 
----
+## 14. Skenario Operasional Awam
+1. Buka frontend.
+2. Register OWNER (`/register`) dengan wallet MetaMask.
+3. Login wallet (`/login`).
+4. Buat data pet.
+5. Saat transaksi muncul di MetaMask, klik confirm.
+6. Sistem menyimpan data pet + bukti transaksi on-chain.
 
-## 7. Detail blockchain & sinkronisasi data
+## 15. Pengujian Performa (Locust)
+Folder: `performance/`
+- `locustfile.py`
+- `run_scenarios.ps1`
+- skenario 10, 50, 100 user
 
-### 7.1 Kontrak PetIdentityRegistry (Solidity)
-Kontrak utama berada di `backend/contracts/PetIdentityRegistry.sol`. Fitur yang tersedia:
-- Menyimpan `Pet` dan `MedicalRecord` lengkap dengan `publicId`, timestamp kelahiran, klinik pembuat catatan, serta flag verifikasi.
-- Menyediakan event `PetRegistered`, `PetUpdated`, `MedicalRecordAdded`, `MedicalRecordVerified`, dan `OwnershipTransferred` untuk audit trail on-chain.
-- Mengharuskan klinik terdaftar (allowlist `clinics`) saat memanggil `addMedicalRecord`, `updatePetBasicData`, atau `verifyMedicalRecord`.
-- Memastikan hanya pemilik on-chain yang dapat memanggil `transferOwnership`.
-- Utility view seperti `getPet`, `getMedicalRecords`, dan `getPetIdByPublicId` untuk aplikasi publik.
+Ringkas:
+```powershell
+pip install -r performance/requirements.txt
+powershell -ExecutionPolicy Bypass -File performance/run_scenarios.ps1
+```
 
-### 7.2 Client TypeScript (`backend/src/blockchain/petIdentityClient.ts`)
-Client ini memuat satu instance provider/wallet `ethers` dengan alamat kontrak dari variabel lingkungan. Fungsi yang diekspos:
+## 16. Troubleshooting Umum
+1. `Wallet is not registered`
+   - Wallet belum lewat endpoint register.
+2. `Wallet challenge expired`
+   - Minta challenge baru dan sign ulang.
+3. `Transaction sender does not match authenticated wallet`
+   - Wallet login berbeda dengan wallet yang kirim transaksi.
+4. `could not create unique index users_wallet_address_key`
+   - Data wallet lama duplikat; startup sekarang sudah ada dedup otomatis di `ensureSchema`.
+5. `Missing BLOCKCHAIN_RPC_URL` atau `Missing PET_IDENTITY_ADDRESS`
+   - Cek `.env` backend.
+6. Frontend tidak bisa hit backend
+   - Cek `frontend/.env` `VITE_API_URL`.
+7. Belum punya akun ADMIN awal
+   - Register dulu sebagai OWNER, lalu ubah role via SQL:
+```sql
+UPDATE users SET role = 'ADMIN' WHERE email = 'email_admin@contoh.com';
+```
 
-| Fungsi                      | Keterangan                                                                                               |
-|-----------------------------|----------------------------------------------------------------------------------------------------------|
-| `registerPet`               | Memanggil `registerPet` dan mem-parsing event `PetRegistered` guna mendapatkan `petId` on-chain.         |
-| `updatePetBasicData`        | Menjaga konsistensi data dasar hewan bila ada koreksi yang perlu disinkron ke blockchain.                |
-| `addMedicalRecord`          | Menambahkan catatan vaksin berdasarkan `onChainPetId` serta mengembalikan hash transaksi untuk UI.       |
-| `verifyMedicalRecord`       | Memperbarui status verifikasi catatan di kontrak jika dibutuhkan untuk skenario audit.                   |
-| `transferOwnership`         | (Opsional) memfasilitasi sinkronisasi kepemilikan bila ingin dicatat juga ke on-chain wallet address.    |
-| `getPet` / `getMedicalRecords` | Endpoint pembacaan langsung ketika diperlukan debugging atau fitur publik tambahan.                   |
-
-### 7.3 Alur sinkronisasi backend <-> blockchain
-1. **Registrasi hewan (`POST /pets`)**  
-   Controller (`createPetController`) mengubah tanggal lahir menjadi detik Unix, memanggil `registerPet`, lalu menyimpan hasil `onChainPetId` di kolom `pet.onChainPetId`. Jika RPC gagal, request digagalkan agar data tetap konsisten.
-2. **Pencatatan vaksin (`POST /pets/:petId/medical-records`)**  
-   Backend mengecek apakah `onChainPetId` sudah tersedia. Jika iya, catatan dibuat di PostgreSQL lalu `addMedicalRecord` dipanggil dengan timestamp vaksin. Hash transaksi dikirim balik ke frontend sehingga klinik dapat menunjukkan bukti on-chain.
-3. **Verifikasi & koreksi**  
-   Klinik memverifikasi catatan di database. Bila diperlukan, admin/klinik dapat men-trigger `updatePetBasicData` atau `verifyMedicalRecord` agar perubahan tercermin di kontrak (fungsi sudah tersedia di client).
-4. **Pembacaan publik**  
-   Fitur Trace memanfaatkan database (karena sudah memuat data terverifikasi) sementara halaman simulator dapat menembak `getPet` / `getMedicalRecords` langsung untuk validasi silang.
-
-### 7.4 Debug endpoint & Blockchain Simulator
-- `backend/src/routes/debugBlockchain.ts` mengekspos endpoint `/api/debug/register-pet`, `/api/debug/pet/:id`, dan dapat diperluas dengan helper lain selama proses QA.
-- `frontend/src/pages/BlockchainSimulatorPage.tsx` adalah UI internal untuk ping backend, membuat pet/medical record langsung lewat debug endpoint, serta membaca data mentah dari node yang sama dengan backend. Sangat membantu saat menguji koneksi RPC, private key, atau event parsing sebelum fitur utama digunakan end-user.
-
-#### 7.4.1 Cara menggunakan simulator blockchain lokal
-1. **Mulai node Hardhat & deploy kontrak**  
-   ```bash
-   cd backend
-   npx hardhat node             # opsional jika ingin RPC lokal (default port 8545)
-   npx hardhat run scripts/deploy.js --network localhost
-   ```  
-   Perintah kedua akan menulis alamat kontrak terbaru ke `backend/deployed/petIdentity.json`.
-2. **Whitelist alamat backend sebagai klinik**  
-   Kontrak hanya mengizinkan klinik yang sudah di-allowlist memanggil fungsi `addMedicalRecord`/`updatePetBasicData`.  
-   ```bash
-   # masih di backend/
-   node -e "const { Wallet } = require('ethers');require('dotenv').config();console.log(new Wallet(process.env.BLOCKCHAIN_PRIVATE_KEY).address);"
-   npx hardhat console --network localhost
-   ```
-   Di dalam console Hardhat:  
-   ```js
-   const registry = await ethers.getContractAt(
-     "PetIdentityRegistry",
-     "0x5FbDB2315678afecb367f032d93F642f64180aa3" // alamat dari backend/deployed/petIdentity.json
-   );
-   await registry.addClinic("<alamat_wallet_backend>");
-   await registry.clinics("<alamat_wallet_backend>"); // pastikan true
-   ```
-   Gunakan akun pemilik kontrak (signer pertama saat deploy) untuk menjalankan `addClinic`.
-3. **Jalankan backend & frontend**  
-   Pastikan `.env` backend berisi `BLOCKCHAIN_RPC_URL`, `BLOCKCHAIN_PRIVATE_KEY`, dan `PET_IDENTITY_ADDRESS` yang baru. Setelah `npm run dev` di backend/frontend, akses `http://localhost:5173/admin/blockchain-simulator`.  
-   Rute simulator di-guard oleh `ProtectedRoute` dan kini dapat diakses oleh role ADMIN maupun CLINIC.
-4. **Gunakan UI simulator**  
-   - Register pet baru melalui kartu “Register Pet” → menyimpan hash transaksi.  
-   - Ambil data pet/catatan medis via “Fetch Pet/Records”. Jika ID belum ada akan muncul pesan “Pet ID tidak ditemukan”.  
-   - Tambah rekam medis lewat “Add Medical Record”. Bila whitelist belum diset, backend akan mengembalikan `CLINIC_ACCESS_DENIED` dengan instruksi menambahkan klinik seperti langkah di atas.
-
-Dengan desain ini, PostgreSQL tetap menjadi sumber data utama untuk query kompleks dan otorisasi, sementara blockchain menyediakan bukti immutabel serta hash transaksi untuk dilampirkan pada laporan atau QR code.
-
----
-
-## 8. Running full stack
-
-1. Jalankan PostgreSQL dan buat DB sesuai `DATABASE_URL`.
-2. `npm run dev` di `backend/` (pastikan `.env` lengkap).
-3. `npm run dev` di `frontend/`.
-4. (Opsional) Hardhat node + deploy kontrak lokal sebelum backend memanggil blockchain.
-5. Akses UI di `http://localhost:5173`.
-
----
-
-## 9. Troubleshooting
-
-| Masalah                                               | Solusi                                                                                          |
-|-------------------------------------------------------|-------------------------------------------------------------------------------------------------|
-| `HH108: Cannot connect to localhost`                  | Jalankan `npx hardhat node` terlebih dahulu sebelum deploy.                                     |
-| Konflik versi Hardhat/toolbox                         | Pastikan `hardhat@^2.27` sesuai dengan `@nomicfoundation/hardhat-toolbox@^6`.                   |
-| `PetRegistered event not found`                       | Pastikan kontrak terbaru dikompilasi dan alamat `PET_IDENTITY_ADDRESS` benar.                   |
-| `Pet is not registered on blockchain` saat catatan    | Artinya Pet di DB belum punya `onChainPetId`. Daftarkan ulang atau sinkronkan datanya.          |
-| Prisma error/migrasi                                  | Cek koneksi `DATABASE_URL`, jalankan `npx prisma migrate dev` atau `npx prisma db push`.       |
-| Node version mismatch                                 | Gunakan `nvs link 24.11.1` atau `nvm alias default 24` agar runtime konsisten.                 |
-
----
-
-## 10. Scope pengujian skripsi
-
-- Fokus pengujian: fungsional, integrasi backend-smart contract, dan integritas data on-chain/off-chain.
-- Sepolia diperlakukan sebagai test environment untuk validasi eksternal saat diperlukan.
-- Tidak ada implementasi k6; pengujian performa bukan fokus utama penelitian ini.
-
----
-
-## 11. Referensi lanjut
-
-- [Hardhat docs](https://hardhat.org/hardhat-runner/docs)
-- [Prisma](https://www.prisma.io/docs)
-- [ethers.js v6](https://docs.ethers.org/v6/)
-- [React Router](https://reactrouter.com/)
-
-Feel free untuk menambah dokumentasi tambahan (mis. diagram arsitektur, detail API schema) sesuai kebutuhan laporan skripsi. Semoga sukses! 🚀
+## 17. Struktur Direktori
+```text
+backend/
+  contracts/
+  scripts/
+  src/
+    blockchain/
+    controllers/
+    routes/
+    services/
+    entities/
+  prisma/
+frontend/
+  src/
+    pages/
+    services/
+    context/
+performance/
+```

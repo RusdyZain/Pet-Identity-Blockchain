@@ -63,7 +63,7 @@ contract PetIdentityRegistry {
     event ClinicAccessUpdated(
         address indexed clinic,
         Status status,
-        address indexed actor,
+        address indexed verifiedBy,
         uint256 timestamp,
         bytes32 dataHash
     );
@@ -73,14 +73,14 @@ contract PetIdentityRegistry {
         uint256 indexed petId,
         bytes32 dataHash,
         Status status,
-        address indexed actor,
+        address indexed verifiedBy,
         uint256 timestamp
     );
     event PetUpdated(
         uint256 indexed petId,
         bytes32 dataHash,
         Status status,
-        address indexed actor,
+        address indexed verifiedBy,
         uint256 timestamp
     );
 
@@ -90,7 +90,7 @@ contract PetIdentityRegistry {
         uint256 indexed petId,
         bytes32 dataHash,
         Status status,
-        address indexed actor,
+        address indexed verifiedBy,
         uint256 timestamp
     );
     event MedicalRecordReviewed(
@@ -98,7 +98,7 @@ contract PetIdentityRegistry {
         uint256 indexed petId,
         bytes32 dataHash,
         Status status,
-        address indexed actor,
+        address indexed verifiedBy,
         uint256 timestamp
     );
 
@@ -107,7 +107,7 @@ contract PetIdentityRegistry {
         uint256 indexed petId,
         bytes32 dataHash,
         Status status,
-        address indexed actor,
+        address indexed verifiedBy,
         uint256 timestamp,
         address oldOwner,
         address newOwner

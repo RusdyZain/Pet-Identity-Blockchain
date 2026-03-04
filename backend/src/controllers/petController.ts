@@ -11,11 +11,78 @@ import {
 } from "../services/petService";
 import { AppError } from "../utils/errors";
 import {
-  getBackendWalletAddress,
-  registerPet,
+  confirmRegisterPetTx,
+  prepareRegisterPetTx,
 } from "../blockchain/petIdentityClient";
 import { buildPetDataHash } from "../utils/dataHash";
 import { ensureUserWalletAddress } from "../services/userWalletService";
+
+const parsePetFormPayload = (payload: Record<string, unknown>) => {
+  const name = `${payload.name ?? ""}`.trim();
+  const species = `${payload.species ?? ""}`.trim();
+  const breed = `${payload.breed ?? ""}`.trim();
+  const color = `${payload.color ?? ""}`.trim();
+  const physicalMark = `${payload.physical_mark ?? ""}`.trim();
+  const birthDateRaw = `${payload.birth_date ?? ""}`.trim();
+  const txHash = typeof payload.txHash === "string" ? payload.txHash.trim() : "";
+
+  let { publicId, public_id: publicIdSnake } = payload as {
+    publicId?: string;
+    public_id?: string;
+  };
+  const resolvedPublicId =
+    typeof publicId === "string" && publicId.trim().length > 0
+      ? publicId.trim()
+      : typeof publicIdSnake === "string" && publicIdSnake.trim().length > 0
+      ? publicIdSnake.trim()
+      : undefined;
+
+  if (!name || !species || !breed || !birthDateRaw || !color || !physicalMark) {
+    throw new AppError("Missing required fields", 400);
+  }
+
+  const birthDate = new Date(birthDateRaw);
+  if (Number.isNaN(birthDate.getTime())) {
+    throw new AppError("Tanggal lahir tidak valid", 400);
+  }
+
+  return {
+    name,
+    species,
+    breed,
+    color,
+    physicalMark,
+    birthDate,
+    txHash,
+    publicId: resolvedPublicId,
+  };
+};
+
+export const preparePetRegistrationController = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    if (!req.user) throw new AppError("Unauthorized", 401);
+    const parsed = parsePetFormPayload(req.body as Record<string, unknown>);
+    const publicId = parsed.publicId ?? generatePublicId();
+    const dataHash = buildPetDataHash({
+      publicId,
+      name: parsed.name,
+      species: parsed.species,
+      breed: parsed.breed,
+      birthDate: parsed.birthDate,
+      color: parsed.color,
+      physicalMark: parsed.physicalMark,
+    });
+
+    const txRequest = prepareRegisterPetTx(dataHash);
+    res.json({ publicId, dataHash, txRequest });
+  } catch (error) {
+    next(error);
+  }
+};
 
 // Handler pembuatan hewan baru (DB + blockchain).
 export const createPetController = async (
@@ -25,71 +92,54 @@ export const createPetController = async (
 ) => {
   try {
     if (!req.user) throw new AppError("Unauthorized", 401);
-    const { name, species, breed, birth_date, color, physical_mark } = req.body;
-    let { publicId, public_id: publicIdSnake } = req.body as {
-      publicId?: string;
-      public_id?: string;
-    };
-    let resolvedPublicId =
-      typeof publicId === "string" && publicId.trim().length > 0
-        ? publicId.trim()
-        : typeof publicIdSnake === "string" && publicIdSnake.trim().length > 0
-        ? publicIdSnake.trim()
-        : undefined;
-
-    if (
-      !name ||
-      !species ||
-      !breed ||
-      !birth_date ||
-      !color ||
-      !physical_mark
-    ) {
-      throw new AppError("Missing required fields", 400);
+    const parsed = parsePetFormPayload(req.body as Record<string, unknown>);
+    if (!parsed.txHash) {
+      throw new AppError("txHash is required", 400);
     }
 
-    const birthDate = new Date(birth_date);
-    if (Number.isNaN(birthDate.getTime())) {
-      throw new AppError("Tanggal lahir tidak valid", 400);
-    }
-
-    if (!resolvedPublicId) {
-      resolvedPublicId = generatePublicId();
-    }
+    const resolvedPublicId = parsed.publicId ?? generatePublicId();
 
     const dataHash = buildPetDataHash({
       publicId: resolvedPublicId,
-      name,
-      species,
-      breed,
-      birthDate,
-      color,
-      physicalMark: physical_mark,
+      name: parsed.name,
+      species: parsed.species,
+      breed: parsed.breed,
+      birthDate: parsed.birthDate,
+      color: parsed.color,
+      physicalMark: parsed.physicalMark,
     });
 
     try {
-      const walletAddress = getBackendWalletAddress();
+      const walletAddress = req.user.walletAddress;
       await ensureUserWalletAddress(req.user.id, walletAddress);
 
-      const { receipt, petId: onChainPetId } = await registerPet(dataHash);
+      const { petId: onChainPetId, metadata } = await confirmRegisterPetTx({
+        txHash: parsed.txHash,
+        expectedDataHash: dataHash,
+        expectedWalletAddress: walletAddress,
+      });
 
       const pet = await createPet(req.user.id, {
         publicId: resolvedPublicId,
-        onChainPetId: Number(onChainPetId),
+        onChainPetId,
         dataHash,
-        txHash: receipt.hash,
-        name,
-        species,
-        breed,
-        birthDate,
-        color,
-        physicalMark: physical_mark,
+        txHash: metadata.txHash,
+        blockNumber: metadata.blockNumber,
+        blockTimestamp: metadata.blockTimestamp,
+        name: parsed.name,
+        species: parsed.species,
+        breed: parsed.breed,
+        birthDate: parsed.birthDate,
+        color: parsed.color,
+        physicalMark: parsed.physicalMark,
       });
 
       return res.status(201).json({
         pet,
         blockchain: {
-          txHash: receipt.hash,
+          txHash: metadata.txHash,
+          blockNumber: metadata.blockNumber,
+          blockTimestamp: metadata.blockTimestamp.toISOString(),
           onChainPetId: onChainPetId.toString(),
         },
       });

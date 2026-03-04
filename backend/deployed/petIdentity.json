@@ -1,5 +1,6 @@
 {
-  "network": "localhost",
-  "address": "0x5FbDB2315678afecb367f032d93F642f64180aa3",
-  "deployedAt": "2026-01-25T12:49:21.526Z"
+  "network": "ganache",
+  "chainId": 1337,
+  "address": "0xB8052Bfad575767BA1a109Da85E192020F73AaE3",
+  "deployedAt": "2026-03-04T00:56:55.987Z"
 }

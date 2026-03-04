@@ -31,6 +31,12 @@ export class Pet {
   @Column({ name: "tx_hash", type: "text", nullable: true })
   txHash!: string | null;
 
+  @Column({ name: "block_number", type: "int", nullable: true })
+  blockNumber!: number | null;
+
+  @Column({ name: "block_timestamp", type: "timestamp", nullable: true })
+  blockTimestamp!: Date | null;
+
   @Column()
   name!: string;
 

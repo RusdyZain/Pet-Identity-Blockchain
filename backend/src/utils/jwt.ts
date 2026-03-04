@@ -6,6 +6,7 @@ import { ENV } from "../config/env";
 export interface JwtPayload {
   userId: number;
   role: string;
+  walletAddress: string;
 }
 
 // Secret diambil dari ENV (fallback jika belum diset).

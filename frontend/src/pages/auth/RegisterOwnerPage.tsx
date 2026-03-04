@@ -3,6 +3,7 @@ import type { ChangeEvent, FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { TextField } from '../../components/forms/TextField';
 import { authApi } from '../../services/apiClient';
+import { connectWallet, signAuthChallenge } from '../../services/walletClient';
 
 // Halaman registrasi khusus pemilik hewan.
 export const RegisterOwnerPage = () => {
@@ -10,12 +11,11 @@ export const RegisterOwnerPage = () => {
   const [form, setForm] = useState({
     name: '',
     email: '',
-    password: '',
-    passwordConfirm: '',
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [walletAddress, setWalletAddress] = useState('');
 
   // Helper untuk update form field.
   const handleChange =
@@ -29,28 +29,29 @@ export const RegisterOwnerPage = () => {
     setError('');
     setSuccess('');
 
-    if (!form.name.trim() || !form.email.trim() || !form.password) {
-      setError('Nama, email, dan password wajib diisi.');
-      return;
-    }
-
-    if (form.password !== form.passwordConfirm) {
-      setError('Konfirmasi password tidak sama.');
+    if (!form.name.trim() || !form.email.trim()) {
+      setError('Nama dan email wajib diisi.');
       return;
     }
 
     setLoading(true);
     try {
+      const connectedWallet = await connectWallet();
+      setWalletAddress(connectedWallet);
+      const authPayload = await signAuthChallenge(connectedWallet);
+
       await authApi.register({
         name: form.name.trim(),
         email: form.email.trim(),
-        password: form.password,
         role: 'OWNER',
+        walletAddress: connectedWallet,
+        message: authPayload.message,
+        signature: authPayload.signature,
       });
-      setSuccess('Registrasi berhasil. Silakan login.');
+      setSuccess('Registrasi wallet berhasil. Silakan login.');
       setTimeout(() => navigate('/login'), 1200);
     } catch (err: any) {
-      setError(err?.response?.data?.message ?? 'Registrasi gagal. Coba lagi.');
+      setError(err?.response?.data?.message ?? err?.message ?? 'Registrasi gagal. Coba lagi.');
     } finally {
       setLoading(false);
     }
@@ -78,20 +79,11 @@ export const RegisterOwnerPage = () => {
           onChange={handleChange('email')}
           required
         />
-        <TextField
-          label="Password"
-          type="password"
-          value={form.password}
-          onChange={handleChange('password')}
-          required
-        />
-        <TextField
-          label="Konfirmasi Password"
-          type="password"
-          value={form.passwordConfirm}
-          onChange={handleChange('passwordConfirm')}
-          required
-        />
+        {walletAddress && (
+          <p className="rounded-lg bg-slate-50 px-3 py-2 font-mono text-xs text-slate-700">
+            Wallet: {walletAddress}
+          </p>
+        )}
         {error && <p className="text-sm text-red-600">{error}</p>}
         {success && <p className="text-sm text-green-600">{success}</p>}
         <button

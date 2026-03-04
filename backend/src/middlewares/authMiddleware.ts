@@ -15,7 +15,11 @@ export const authenticate =
     const token = header.startsWith("Bearer ") ? header.slice(7) : header;
     try {
       const payload = verifyJwt(token);
-      req.user = { id: payload.userId, role: payload.role as any };
+      req.user = {
+        id: payload.userId,
+        role: payload.role as any,
+        walletAddress: payload.walletAddress,
+      };
       return next();
     } catch (_err) {
       if (options.optional) return next();

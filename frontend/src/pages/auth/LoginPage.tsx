@@ -1,8 +1,7 @@
 import { useState } from 'react';
-import type { ChangeEvent, FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { TextField } from '../../components/forms/TextField';
 import { useAuth } from '../../context/AuthContext';
+import { connectWallet, signAuthChallenge } from '../../services/walletClient';
 import type { UserRole } from '../../types';
 
 // Tujuan setelah login berdasarkan role.
@@ -17,19 +16,19 @@ const redirectMap: Record<UserRole, string> = {
 export const LoginPage = () => {
   const { login, loading } = useAuth();
   const navigate = useNavigate();
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [walletAddress, setWalletAddress] = useState('');
   const [error, setError] = useState('');
 
-  // Submit form login dan simpan error jika gagal.
-  const handleSubmit = async (event: FormEvent) => {
-    event.preventDefault();
+  const handleWalletLogin = async () => {
     setError('');
     try {
-      const user = await login(email, password);
+      const connectedWallet = await connectWallet();
+      setWalletAddress(connectedWallet);
+      const authPayload = await signAuthChallenge(connectedWallet);
+      const user = await login(authPayload);
       navigate(redirectMap[user.role] ?? '/owner/dashboard', { replace: true });
     } catch (err: any) {
-      setError(err?.response?.data?.message ?? 'Gagal masuk. Pastikan kredensial benar.');
+      setError(err?.response?.data?.message ?? err?.message ?? 'Gagal masuk menggunakan wallet.');
     }
   };
 
@@ -37,32 +36,27 @@ export const LoginPage = () => {
     <div className="space-y-6">
       <div>
         <h2 className="text-xl font-semibold text-slate-800">Masuk</h2>
-        <p className="text-sm text-slate-500">Gunakan akun OWNER, CLINIC, atau ADMIN.</p>
+        <p className="text-sm text-slate-500">Autentikasi menggunakan wallet MetaMask.</p>
       </div>
-      <form className="space-y-4" onSubmit={handleSubmit}>
-        <TextField
-          label="Email"
-          type="email"
-          value={email}
-          onChange={(e: ChangeEvent<HTMLInputElement>) => setEmail(e.currentTarget.value)}
-          required
-        />
-        <TextField
-          label="Password"
-          type="password"
-          value={password}
-          onChange={(e: ChangeEvent<HTMLInputElement>) => setPassword(e.currentTarget.value)}
-          required
-        />
+      <div className="space-y-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+        <p className="text-sm text-slate-600">
+          Klik tombol di bawah, hubungkan wallet, lalu tanda tangani challenge login.
+        </p>
+        {walletAddress && (
+          <p className="rounded-lg bg-white px-3 py-2 font-mono text-xs text-slate-700">
+            Connected: {walletAddress}
+          </p>
+        )}
         {error && <p className="text-sm text-red-600">{error}</p>}
         <button
-          type="submit"
+          type="button"
+          onClick={handleWalletLogin}
           disabled={loading}
           className="w-full rounded-full bg-primary px-4 py-2 text-white font-semibold shadow-lg shadow-primary/30 disabled:opacity-60"
         >
-          {loading ? 'Memproses...' : 'Masuk'}
+          {loading ? 'Memproses...' : 'Connect Wallet & Sign In'}
         </button>
-      </form>
+      </div>
       <div className="text-sm text-slate-500">
         <p>
           Akses publik untuk penelusuran identitas tersedia di halaman{' '}

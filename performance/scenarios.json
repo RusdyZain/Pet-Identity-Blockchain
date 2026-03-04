@@ -1,0 +1,22 @@
+{
+  "scenarios": [
+    {
+      "name": "users_10",
+      "users": 10,
+      "spawnRate": 2,
+      "duration": "5m"
+    },
+    {
+      "name": "users_50",
+      "users": 50,
+      "spawnRate": 10,
+      "duration": "5m"
+    },
+    {
+      "name": "users_100",
+      "users": 100,
+      "spawnRate": 20,
+      "duration": "5m"
+    }
+  ]
+}

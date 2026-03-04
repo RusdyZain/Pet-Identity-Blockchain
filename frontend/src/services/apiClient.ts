@@ -9,6 +9,7 @@ import type {
   OwnershipHistory,
   OwnerProfile,
   Pet,
+  PreparedTxRequest,
   TraceResult,
 } from '../types';
 
@@ -37,12 +38,27 @@ api.interceptors.request.use((config) => {
 
 // API autentikasi (login, register, logout).
 export const authApi = {
-  login: async (email: string, password: string) => {
-    const { data } = await api.post<AuthResponse>('/auth/login', { email, password });
+  challenge: async (walletAddress: string) => {
+    const { data } = await api.post<{
+      walletAddress: string;
+      message: string;
+      expiresAt: string;
+    }>('/auth/wallet/challenge', { walletAddress });
+    return data;
+  },
+  login: async (payload: { walletAddress: string; message: string; signature: string }) => {
+    const { data } = await api.post<AuthResponse>('/auth/login', payload);
     localStorage.setItem(TOKEN_KEY, data.token);
     return data;
   },
-  register: async (payload: { name: string; email: string; password: string; role: string }) => {
+  register: async (payload: {
+    name: string;
+    email: string;
+    role: string;
+    walletAddress: string;
+    message: string;
+    signature: string;
+  }) => {
     const { data } = await api.post('/auth/register', payload);
     return data;
   },
@@ -69,6 +85,21 @@ export const ownerAccountApi = {
 
 // API untuk data hewan dan alur kepemilikan.
 export const petApi = {
+  prepareCreate: async (payload: {
+    name: string;
+    species: string;
+    breed: string;
+    birth_date: string;
+    color: string;
+    physical_mark: string;
+  }) => {
+    const { data } = await api.post<{
+      publicId: string;
+      dataHash: string;
+      txRequest: PreparedTxRequest;
+    }>('/pets/prepare-registration', payload);
+    return data;
+  },
   list: async (params?: { search?: string }) => {
     const { data } = await api.get<Pet[]>('/pets', { params });
     return data;
@@ -80,8 +111,10 @@ export const petApi = {
     birth_date: string;
     color: string;
     physical_mark: string;
+    publicId?: string;
+    txHash: string;
   }) => {
-    const { data } = await api.post<Pet>('/pets', payload);
+    const { data } = await api.post<{ pet: Pet; blockchain: Record<string, unknown> }>('/pets', payload);
     return data;
   },
   detail: async (petId: string) => {
@@ -122,15 +155,50 @@ export const medicalRecordApi = {
       given_at: string;
       notes?: string;
       evidence_url?: string;
+      txHash: string;
     },
   ) => {
-    const { data } = await api.post<MedicalRecord>(`/pets/${petId}/medical-records`, payload);
+    const { data } = await api.post<{ record: MedicalRecord; blockchain: Record<string, unknown> }>(
+      `/pets/${petId}/medical-records`,
+      payload,
+    );
     return data;
   },
-  verify: async (recordId: string, status: 'VERIFIED' | 'REJECTED') => {
-    const { data } = await api.patch<MedicalRecord>(`/medical-records/${recordId}/verify`, {
+  prepareCreate: async (
+    petId: string,
+    payload: {
+      vaccine_type: string;
+      batch_number: string;
+      given_at: string;
+      notes?: string;
+      evidence_url?: string;
+    },
+  ) => {
+    const { data } = await api.post<{
+      onChainPetId: number;
+      dataHash: string;
+      txRequest: PreparedTxRequest;
+    }>(`/pets/${petId}/medical-records/prepare`, payload);
+    return data;
+  },
+  prepareVerify: async (recordId: string, status: 'VERIFIED' | 'REJECTED') => {
+    const { data } = await api.patch<{
+      onChainRecordId: number;
+      chainStatus: number;
+      txRequest: PreparedTxRequest;
+    }>(`/medical-records/${recordId}/verify/prepare`, {
       status,
     });
+    return data;
+  },
+  verify: async (recordId: string, status: 'VERIFIED' | 'REJECTED', txHash: string) => {
+    const { data } = await api.patch<{ record: MedicalRecord; blockchain: Record<string, unknown> }>(
+      `/medical-records/${recordId}/verify`,
+      {
+        status,
+        txHash,
+      },
+    );
     return data;
   },
 };
@@ -152,9 +220,18 @@ export const correctionApi = {
   },
   review: async (
     id: string,
-    payload: { status: 'APPROVED' | 'REJECTED'; reason?: string },
+    payload: { status: 'APPROVED' | 'REJECTED'; reason?: string; txHash?: string },
   ) => {
     const { data } = await api.patch(`/corrections/${id}`, payload);
+    return data;
+  },
+  prepareReview: async (id: string, payload: { status: 'APPROVED' | 'REJECTED' }) => {
+    const { data } = await api.patch<{
+      requiresOnChainTx: boolean;
+      onChainPetId?: number;
+      dataHash?: string;
+      txRequest?: PreparedTxRequest;
+    }>(`/corrections/${id}/prepare`, payload);
     return data;
   },
 };
@@ -193,13 +270,25 @@ export const adminApi = {
     const { data } = await api.get<AdminUser[]>('/admin/users', { params });
     return data;
   },
-  createUser: async (payload: { name: string; email: string; password: string; role: string }) => {
+  createUser: async (payload: {
+    name: string;
+    email: string;
+    password: string;
+    role: string;
+    walletAddress?: string;
+  }) => {
     const { data } = await api.post<AdminUser>('/admin/users', payload);
     return data;
   },
   updateUser: async (
     id: number,
-    payload: { name?: string; email?: string; password?: string; role?: string },
+    payload: {
+      name?: string;
+      email?: string;
+      password?: string;
+      role?: string;
+      walletAddress?: string;
+    },
   ) => {
     const { data } = await api.patch<AdminUser>(`/admin/users/${id}`, payload);
     return data;

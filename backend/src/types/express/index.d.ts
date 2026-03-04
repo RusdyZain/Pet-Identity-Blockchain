@@ -6,6 +6,7 @@ declare global {
     interface UserContext {
       id: number;
       role: UserRole;
+      walletAddress: string;
     }
 
     // Tambahkan properti user ke Request Express.

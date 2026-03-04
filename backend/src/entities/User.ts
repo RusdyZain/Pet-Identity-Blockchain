@@ -20,7 +20,7 @@ export class User {
   @Column({ name: "password_hash", select: false })
   passwordHash!: string;
 
-  @Column({ name: "wallet_address", type: "text", nullable: true })
+  @Column({ name: "wallet_address", type: "text", nullable: true, unique: true })
   walletAddress!: string | null;
 
   @Column({

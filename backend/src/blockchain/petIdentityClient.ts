@@ -1,81 +1,63 @@
 import { config as loadEnv } from "dotenv";
-import {
-  Contract,
-  JsonRpcProvider,
-  Wallet,
-  Signer,
-  Log,
-  ContractTransactionResponse,
-  ContractTransactionReceipt,
-} from "ethers";
+import { Contract, JsonRpcProvider, getAddress } from "ethers";
 import path from "path";
 import fs from "fs";
+import { AppError } from "../utils/errors";
 
 loadEnv();
 
-// Konfigurasi RPC untuk integrasi aplikasi (Hardhat lokal atau testnet).
-const { BLOCKCHAIN_RPC_URL, BLOCKCHAIN_PRIVATE_KEY, PET_IDENTITY_ADDRESS } =
-  process.env;
+const { BLOCKCHAIN_RPC_URL, PET_IDENTITY_ADDRESS } = process.env;
 
-// Pastikan variable environment wajib tersedia sebelum inisialisasi.
 if (!BLOCKCHAIN_RPC_URL) {
   throw new Error("Missing BLOCKCHAIN_RPC_URL in environment variables.");
-}
-if (!BLOCKCHAIN_PRIVATE_KEY) {
-  throw new Error("Missing BLOCKCHAIN_PRIVATE_KEY in environment variables.");
 }
 if (!PET_IDENTITY_ADDRESS) {
   throw new Error("Missing PET_IDENTITY_ADDRESS in environment variables.");
 }
 
-// Provider dan wallet untuk mengirim transaksi ke blockchain.
 const provider = new JsonRpcProvider(BLOCKCHAIN_RPC_URL);
-const wallet = new Wallet(BLOCKCHAIN_PRIVATE_KEY, provider);
+const contractAddress = getAddress(PET_IDENTITY_ADDRESS);
+const contractAddressLower = contractAddress.toLowerCase();
 
-// ABI kontrak dibaca dari artifact hasil compile.
 const artifactPath = path.join(
   __dirname,
   "../../artifacts/contracts/PetIdentityRegistry.sol/PetIdentityRegistry.json"
 );
 const artifactJson = JSON.parse(fs.readFileSync(artifactPath, "utf-8"));
 
-// Tipe kontrak agar pemanggilan method lebih jelas di TypeScript.
 type PetIdentityContract = Contract & {
-  registerPet: (dataHash: string) => Promise<ContractTransactionResponse>;
-  updatePetBasicData: (
-    petId: number,
-    dataHash: string
-  ) => Promise<ContractTransactionResponse>;
-  addMedicalRecord: (
-    petId: number,
-    dataHash: string
-  ) => Promise<ContractTransactionResponse>;
-  verifyMedicalRecord: (
-    recordId: number,
-    status: number
-  ) => Promise<ContractTransactionResponse>;
-  clinics: (clinic: string) => Promise<boolean>;
-  addClinic: (clinic: string) => Promise<ContractTransactionResponse>;
-  contractOwner: () => Promise<string>;
   getPetIdByHash: (dataHash: string) => Promise<bigint>;
-  transferOwnership: (
-    petId: number,
-    newOwner: string
-  ) => Promise<ContractTransactionResponse>;
-  getPet: (petId: number) => Promise<any>;
-  getMedicalRecords: (petId: number) => Promise<any[]>;
+  getPet: (petId: number) => Promise<unknown>;
+  getMedicalRecords: (petId: number) => Promise<unknown[]>;
 };
 
-// Instance kontrak yang terhubung dengan wallet backend.
 const contract: PetIdentityContract = new Contract(
-  PET_IDENTITY_ADDRESS,
+  contractAddress,
   artifactJson.abi,
-  wallet
+  provider
 ) as PetIdentityContract;
 
 const LOCAL_CHAIN_IDS = new Set([1337, 31337]);
 let cachedChainId: number | null = null;
-let clinicAccessEnsured = false;
+
+export type TxMetadata = {
+  txHash: string;
+  blockNumber: number;
+  blockTimestamp: Date;
+  from: string;
+};
+
+type ParsedEvent = {
+  args: any;
+};
+
+const normalizeWalletAddress = (walletAddress: string) => {
+  try {
+    return getAddress(walletAddress);
+  } catch (_error) {
+    throw new AppError("Invalid wallet address", 400);
+  }
+};
 
 const getChainId = async (): Promise<number> => {
   if (cachedChainId !== null) {
@@ -86,177 +68,275 @@ const getChainId = async (): Promise<number> => {
   return cachedChainId;
 };
 
+const ensureContractTarget = (toAddress: string | null, txHash: string) => {
+  if (!toAddress || toAddress.toLowerCase() !== contractAddressLower) {
+    throw new AppError(
+      `Transaction ${txHash} is not sent to PetIdentityRegistry contract`,
+      400
+    );
+  }
+};
+
+const toNumber = (value: unknown, label: string) => {
+  if (typeof value === "bigint") {
+    return Number(value);
+  }
+  if (typeof value === "number") {
+    return value;
+  }
+  if (typeof value === "string" && value.length > 0) {
+    return Number(value);
+  }
+  throw new AppError(`Unable to decode ${label} from transaction event`, 400);
+};
+
+const getMinedReceipt = async (txHash: string) => {
+  const receipt = await provider.getTransactionReceipt(txHash);
+  if (!receipt) {
+    throw new AppError("Transaction not found or not mined yet", 400);
+  }
+  if (receipt.status !== 1) {
+    throw new AppError("Transaction failed on-chain", 400);
+  }
+  ensureContractTarget(receipt.to, txHash);
+  return receipt;
+};
+
+const buildTxMetadata = async (txHash: string): Promise<TxMetadata> => {
+  const receipt = await getMinedReceipt(txHash);
+  const block = await provider.getBlock(receipt.blockNumber);
+  if (!block) {
+    throw new AppError("Block not found for transaction", 500);
+  }
+  return {
+    txHash: receipt.hash,
+    blockNumber: receipt.blockNumber,
+    blockTimestamp: new Date(Number(block.timestamp) * 1000),
+    from: normalizeWalletAddress(receipt.from),
+  };
+};
+
+const assertTxSender = (sender: string, expectedWalletAddress: string) => {
+  const expected = normalizeWalletAddress(expectedWalletAddress);
+  if (sender.toLowerCase() !== expected.toLowerCase()) {
+    throw new AppError("Transaction sender does not match authenticated wallet", 403);
+  }
+};
+
+const parseEventFromReceipt = async (
+  txHash: string,
+  eventName: string
+): Promise<ParsedEvent> => {
+  const receipt = await getMinedReceipt(txHash);
+  const eventFragment = contract.interface.getEvent(eventName);
+  if (!eventFragment) {
+    throw new AppError(`Event ${eventName} missing in contract ABI`, 500);
+  }
+  const topicHash = eventFragment.topicHash;
+  const matchedLog = receipt.logs.find(
+    (log) =>
+      log.address.toLowerCase() === contractAddressLower &&
+      log.topics?.[0] === topicHash
+  );
+
+  if (!matchedLog) {
+    throw new AppError(`Event ${eventName} not found in transaction logs`, 400);
+  }
+
+  const parsed = contract.interface.parseLog(matchedLog);
+  if (!parsed) {
+    throw new AppError(`Failed to parse event ${eventName}`, 500);
+  }
+
+  return parsed;
+};
+
+const decodeAddressArg = (value: unknown) => {
+  if (typeof value !== "string") {
+    throw new AppError("Invalid address in transaction event", 400);
+  }
+  return normalizeWalletAddress(value);
+};
+
+const decodeBytes32Arg = (value: unknown) => {
+  if (typeof value !== "string" || value.length === 0) {
+    throw new AppError("Invalid data hash in transaction event", 400);
+  }
+  return value.toLowerCase();
+};
+
+const encodeTxData = (functionName: string, args: unknown[]) => ({
+  to: contractAddress,
+  data: contract.interface.encodeFunctionData(functionName, args),
+});
+
 export const isLocalBlockchain = async (): Promise<boolean> => {
   const chainId = await getChainId();
   return LOCAL_CHAIN_IDS.has(chainId);
 };
 
-export const getBackendWalletAddress = () => wallet.address;
+export const getPetIdentityContractAddress = () => contractAddress;
 
-const ensureClinicAccess = async (): Promise<void> => {
-  if (clinicAccessEnsured) {
-    return;
-  }
-  if (!(await isLocalBlockchain())) {
-    return;
-  }
+export const getBackendChainId = async () => getChainId();
 
-  const isClinic = await contract.clinics(wallet.address);
-  if (isClinic) {
-    clinicAccessEnsured = true;
-    return;
-  }
+export const prepareRegisterPetTx = (dataHash: string) =>
+  encodeTxData("registerPet", [dataHash]);
 
-  const owner = await contract.contractOwner();
-  const ownerSigner: Signer =
-    owner.toLowerCase() === wallet.address.toLowerCase()
-      ? wallet
-      : await provider.getSigner(owner);
-  const ownerContract = contract.connect(ownerSigner) as PetIdentityContract;
-  const tx = await ownerContract.addClinic(wallet.address);
-  const receipt = await tx.wait();
-  if (!receipt) {
-    throw new Error("Failed to whitelist clinic wallet on local chain");
-  }
-  clinicAccessEnsured = true;
-};
+export const prepareAddMedicalRecordTx = (petId: number, dataHash: string) =>
+  encodeTxData("addMedicalRecord", [petId, dataHash]);
 
-// Daftarkan hewan di kontrak dan kembalikan receipt + petId on-chain.
-export async function registerPet(
-  dataHash: string
-): Promise<{ receipt: ContractTransactionReceipt; petId: bigint }> {
-  const tx = await contract.registerPet(dataHash);
-  const receipt = await tx.wait();
-  if (!receipt) {
-    throw new Error("Failed to fetch transaction receipt for registerPet");
-  }
-
-  // Ambil event PetRegistered dari receipt untuk membaca petId.
-  const eventFragment = contract.interface.getEvent("PetRegistered");
-  if (!eventFragment) {
-    throw new Error("PetRegistered event not found in ABI");
-  }
-  const topic = eventFragment.topicHash;
-  const log = receipt.logs.find((entry: Log) => entry.topics?.[0] === topic);
-
-  if (!log) {
-    throw new Error("PetRegistered event not found in transaction receipt");
-  }
-
-  // Decode log event agar bisa membaca petId hasil register.
-  const parsedLog = contract.interface.parseLog(log);
-  if (!parsedLog) {
-    throw new Error("Failed to parse PetRegistered event log");
-  }
-  const petId = parsedLog.args?.petId ?? parsedLog.args?.[0];
-  if (petId === undefined) {
-    throw new Error("Unable to decode petId from PetRegistered event");
-  }
-
-  return {
-    receipt,
-    petId: BigInt(petId),
-  };
-}
-
-// Update data dasar hewan di kontrak.
-export async function updatePetBasicData(
-  petId: number,
-  dataHash: string
-): Promise<ContractTransactionReceipt> {
-  await ensureClinicAccess();
-  const tx = await contract.updatePetBasicData(petId, dataHash);
-  const receipt = await tx.wait();
-  if (!receipt) {
-    throw new Error("Failed to fetch transaction receipt for updatePetBasicData");
-  }
-  return receipt;
-}
-
-// Tambahkan catatan medis ke kontrak.
-export async function addMedicalRecord(
-  petId: number,
-  dataHash: string
-): Promise<{ receipt: ContractTransactionReceipt; recordId: bigint }> {
-  await ensureClinicAccess();
-  const tx = await contract.addMedicalRecord(petId, dataHash);
-  const receipt = await tx.wait();
-  if (!receipt) {
-    throw new Error("Failed to fetch transaction receipt for addMedicalRecord");
-  }
-
-  const eventFragment = contract.interface.getEvent("MedicalRecordAdded");
-  if (!eventFragment) {
-    throw new Error("MedicalRecordAdded event not found in ABI");
-  }
-  const topic = eventFragment.topicHash;
-  const log = receipt.logs.find((entry: Log) => entry.topics?.[0] === topic);
-  if (!log) {
-    throw new Error("MedicalRecordAdded event not found in transaction receipt");
-  }
-  const parsedLog = contract.interface.parseLog(log);
-  if (!parsedLog) {
-    throw new Error("Failed to parse MedicalRecordAdded event log");
-  }
-  const recordId = parsedLog.args?.recordId ?? parsedLog.args?.[0];
-  if (recordId === undefined) {
-    throw new Error("Unable to decode recordId from MedicalRecordAdded event");
-  }
-
-  return {
-    receipt,
-    recordId: BigInt(recordId),
-  };
-}
-
-// Verifikasi catatan medis di kontrak.
-export async function verifyMedicalRecord(
+export const prepareVerifyMedicalRecordTx = (
   recordId: number,
   status: number
-): Promise<ContractTransactionReceipt> {
-  await ensureClinicAccess();
-  const tx = await contract.verifyMedicalRecord(recordId, status);
-  const receipt = await tx.wait();
-  if (!receipt) {
-    throw new Error("Failed to fetch transaction receipt for verifyMedicalRecord");
-  }
-  return receipt;
-}
+) => encodeTxData("verifyMedicalRecord", [recordId, status]);
 
-// Transfer kepemilikan hewan di kontrak.
-export async function transferOwnership(
-  petId: number,
-  newOwner: string
-): Promise<ContractTransactionReceipt> {
-  const tx = await contract.transferOwnership(petId, newOwner);
-  const receipt = await tx.wait();
-  if (!receipt) {
-    throw new Error("Failed to fetch transaction receipt for transferOwnership");
-  }
-  return receipt;
-}
+export const prepareUpdatePetBasicDataTx = (petId: number, dataHash: string) =>
+  encodeTxData("updatePetBasicData", [petId, dataHash]);
 
-// Ambil data hewan dari kontrak.
-export async function getPet(petId: number): Promise<any> {
+export const confirmRegisterPetTx = async (params: {
+  txHash: string;
+  expectedDataHash: string;
+  expectedWalletAddress: string;
+}) => {
+  const [metadata, event] = await Promise.all([
+    buildTxMetadata(params.txHash),
+    parseEventFromReceipt(params.txHash, "PetRegistered"),
+  ]);
+  assertTxSender(metadata.from, params.expectedWalletAddress);
+
+  const petId = toNumber(event.args?.petId ?? event.args?.[0], "petId");
+  const dataHash = decodeBytes32Arg(event.args?.dataHash ?? event.args?.[1]);
+  const actor = decodeAddressArg(
+    event.args?.verifiedBy ?? event.args?.actor ?? event.args?.[3]
+  );
+  const expectedDataHash = params.expectedDataHash.toLowerCase();
+  const expectedWallet = normalizeWalletAddress(params.expectedWalletAddress);
+
+  if (dataHash !== expectedDataHash) {
+    throw new AppError("dataHash mismatch with on-chain event", 400);
+  }
+  if (actor.toLowerCase() !== expectedWallet.toLowerCase()) {
+    throw new AppError("Event actor mismatch with authenticated wallet", 403);
+  }
+
+  return {
+    petId,
+    metadata,
+  };
+};
+
+export const confirmAddMedicalRecordTx = async (params: {
+  txHash: string;
+  expectedPetId: number;
+  expectedDataHash: string;
+  expectedWalletAddress: string;
+}) => {
+  const [metadata, event] = await Promise.all([
+    buildTxMetadata(params.txHash),
+    parseEventFromReceipt(params.txHash, "MedicalRecordAdded"),
+  ]);
+  assertTxSender(metadata.from, params.expectedWalletAddress);
+
+  const recordId = toNumber(event.args?.recordId ?? event.args?.[0], "recordId");
+  const petId = toNumber(event.args?.petId ?? event.args?.[1], "petId");
+  const dataHash = decodeBytes32Arg(event.args?.dataHash ?? event.args?.[2]);
+  const actor = decodeAddressArg(
+    event.args?.verifiedBy ?? event.args?.actor ?? event.args?.[4]
+  );
+  const expectedWallet = normalizeWalletAddress(params.expectedWalletAddress);
+
+  if (petId !== params.expectedPetId) {
+    throw new AppError("petId mismatch with on-chain event", 400);
+  }
+  if (dataHash !== params.expectedDataHash.toLowerCase()) {
+    throw new AppError("dataHash mismatch with on-chain event", 400);
+  }
+  if (actor.toLowerCase() !== expectedWallet.toLowerCase()) {
+    throw new AppError("Event actor mismatch with authenticated wallet", 403);
+  }
+
+  return {
+    recordId,
+    metadata,
+  };
+};
+
+export const confirmVerifyMedicalRecordTx = async (params: {
+  txHash: string;
+  expectedRecordId: number;
+  expectedStatus: number;
+  expectedWalletAddress: string;
+}) => {
+  const [metadata, event] = await Promise.all([
+    buildTxMetadata(params.txHash),
+    parseEventFromReceipt(params.txHash, "MedicalRecordReviewed"),
+  ]);
+  assertTxSender(metadata.from, params.expectedWalletAddress);
+
+  const recordId = toNumber(event.args?.recordId ?? event.args?.[0], "recordId");
+  const status = toNumber(event.args?.status ?? event.args?.[3], "status");
+  const actor = decodeAddressArg(
+    event.args?.verifiedBy ?? event.args?.actor ?? event.args?.[4]
+  );
+  const expectedWallet = normalizeWalletAddress(params.expectedWalletAddress);
+
+  if (recordId !== params.expectedRecordId) {
+    throw new AppError("recordId mismatch with on-chain event", 400);
+  }
+  if (status !== params.expectedStatus) {
+    throw new AppError("status mismatch with on-chain event", 400);
+  }
+  if (actor.toLowerCase() !== expectedWallet.toLowerCase()) {
+    throw new AppError("Event actor mismatch with authenticated wallet", 403);
+  }
+
+  return {
+    metadata,
+  };
+};
+
+export const confirmUpdatePetBasicDataTx = async (params: {
+  txHash: string;
+  expectedPetId: number;
+  expectedDataHash: string;
+  expectedWalletAddress: string;
+}) => {
+  const [metadata, event] = await Promise.all([
+    buildTxMetadata(params.txHash),
+    parseEventFromReceipt(params.txHash, "PetUpdated"),
+  ]);
+  assertTxSender(metadata.from, params.expectedWalletAddress);
+
+  const petId = toNumber(event.args?.petId ?? event.args?.[0], "petId");
+  const dataHash = decodeBytes32Arg(event.args?.dataHash ?? event.args?.[1]);
+  const actor = decodeAddressArg(
+    event.args?.verifiedBy ?? event.args?.actor ?? event.args?.[3]
+  );
+  const expectedWallet = normalizeWalletAddress(params.expectedWalletAddress);
+
+  if (petId !== params.expectedPetId) {
+    throw new AppError("petId mismatch with on-chain event", 400);
+  }
+  if (dataHash !== params.expectedDataHash.toLowerCase()) {
+    throw new AppError("dataHash mismatch with on-chain event", 400);
+  }
+  if (actor.toLowerCase() !== expectedWallet.toLowerCase()) {
+    throw new AppError("Event actor mismatch with authenticated wallet", 403);
+  }
+
+  return {
+    metadata,
+  };
+};
+
+export async function getPet(petId: number): Promise<unknown> {
   return contract.getPet(petId);
 }
 
-// Ambil seluruh catatan medis dari kontrak.
-export async function getMedicalRecords(petId: number): Promise<any[]> {
+export async function getMedicalRecords(petId: number): Promise<unknown[]> {
   return contract.getMedicalRecords(petId);
 }
 
 export async function getPetIdByHash(dataHash: string): Promise<bigint> {
   return contract.getPetIdByHash(dataHash);
 }
-
-// Contoh penggunaan di handler Express.
-/*
-import { Request, Response } from 'express';
-
-export async function registerPetHandler(req: Request, res: Response) {
-  const { dataHash } = req.body;
-  const receipt = await registerPet(dataHash);
-  return res.json({ txHash: receipt.hash });
-}
-*/

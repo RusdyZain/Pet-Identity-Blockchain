@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { petApi } from '../../services/apiClient';
 import { TextField } from '../../components/forms/TextField';
 import { PageHeader } from '../../components/common/PageHeader';
+import { sendPreparedTransaction } from '../../services/walletClient';
 
 // Form registrasi hewan baru untuk pemilik.
 export const OwnerNewPet = () => {
@@ -33,11 +34,18 @@ export const OwnerNewPet = () => {
     setSuccess('');
     setLoading(true);
     try {
-      await petApi.create(form);
-      setSuccess('Hewan berhasil didaftarkan!');
+      const prepared = await petApi.prepareCreate(form);
+      const { txHash } = await sendPreparedTransaction(prepared.txRequest);
+
+      await petApi.create({
+        ...form,
+        publicId: prepared.publicId,
+        txHash,
+      });
+      setSuccess(`Hewan berhasil didaftarkan. txHash: ${txHash}`);
       setTimeout(() => navigate('/owner/dashboard'), 1200);
     } catch (err: any) {
-      setError(err?.response?.data?.message ?? 'Gagal mendaftarkan hewan.');
+      setError(err?.response?.data?.message ?? err?.message ?? 'Gagal mendaftarkan hewan.');
     } finally {
       setLoading(false);
     }

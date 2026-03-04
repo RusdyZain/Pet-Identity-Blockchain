@@ -6,7 +6,7 @@ interface AuthContextValue {
   user?: AuthUser;
   isAuthenticated: boolean;
   loading: boolean;
-  login: (email: string, password: string) => Promise<AuthUser>;
+  login: (payload: { walletAddress: string; message: string; signature: string }) => Promise<AuthUser>;
   updateUser: (user: AuthUser) => void;
   logout: () => void;
 }
@@ -42,10 +42,14 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   }, [user]);
 
   // Proses login yang mengaktifkan loading dan menyimpan user.
-  const handleLogin = async (email: string, password: string) => {
+  const handleLogin = async (payload: {
+    walletAddress: string;
+    message: string;
+    signature: string;
+  }) => {
     setLoading(true);
     try {
-      const result = await authApi.login(email, password);
+      const result = await authApi.login(payload);
       setUser(result.user);
       return result.user;
     } finally {

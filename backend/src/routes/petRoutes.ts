@@ -4,6 +4,7 @@ import {
   acceptTransferController,
   createCorrectionController,
   createPetController,
+  preparePetRegistrationController,
   getPetController,
   initiateTransferController,
   listPetsController,
@@ -14,6 +15,13 @@ import { authenticate, authorize } from "../middlewares/authMiddleware";
 const router = Router();
 
 // Route untuk data hewan dan alur transfer/koreksi.
+router.post(
+  "/prepare-registration",
+  authenticate(),
+  authorize([UserRole.OWNER]),
+  preparePetRegistrationController
+);
+
 router.post(
   "/",
   authenticate(),

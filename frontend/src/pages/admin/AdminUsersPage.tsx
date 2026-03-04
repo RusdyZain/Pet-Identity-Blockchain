@@ -25,6 +25,7 @@ const emptyForm = {
   email: '',
   role: 'OWNER' as UserRole,
   password: '',
+  walletAddress: '',
 };
 
 // Halaman admin untuk CRUD akun dan peran.
@@ -93,6 +94,11 @@ export const AdminUsersPage = () => {
       return;
     }
 
+    if (!isEditing && !form.walletAddress.trim()) {
+      setError('Wallet address wajib diisi untuk akun baru.');
+      return;
+    }
+
     setSaving(true);
     try {
       if (isEditing && form.id) {
@@ -101,6 +107,7 @@ export const AdminUsersPage = () => {
           email: form.email.trim(),
           role: form.role,
           ...(form.password ? { password: form.password } : {}),
+          walletAddress: form.walletAddress.trim(),
         });
         setSuccess('Akun berhasil diperbarui.');
       } else {
@@ -109,6 +116,7 @@ export const AdminUsersPage = () => {
           email: form.email.trim(),
           password: form.password,
           role: form.role,
+          walletAddress: form.walletAddress.trim(),
         });
         setSuccess('Akun baru berhasil dibuat.');
       }
@@ -128,6 +136,7 @@ export const AdminUsersPage = () => {
       email: target.email,
       role: target.role,
       password: '',
+      walletAddress: target.walletAddress ?? '',
     });
     setSuccess('');
     setError('');
@@ -187,6 +196,12 @@ export const AdminUsersPage = () => {
             type="password"
             value={form.password}
             onChange={handleFormChange('password')}
+            required={!isEditing}
+          />
+          <TextField
+            label={isEditing ? 'Wallet Address (opsional)' : 'Wallet Address'}
+            value={form.walletAddress}
+            onChange={handleFormChange('walletAddress')}
             required={!isEditing}
           />
           {error && <p className="text-sm text-red-600">{error}</p>}

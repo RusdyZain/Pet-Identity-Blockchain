@@ -18,6 +18,8 @@ export const createMedicalRecord = async (params: {
   onChainRecordId: number;
   dataHash: string;
   txHash: string;
+  blockNumber: number;
+  blockTimestamp: Date;
   vaccineType: string;
   batchNumber: string;
   givenAt: Date;
@@ -42,6 +44,8 @@ export const createMedicalRecord = async (params: {
       onChainRecordId: params.onChainRecordId,
       dataHash: params.dataHash,
       txHash: params.txHash,
+      blockNumber: params.blockNumber,
+      blockTimestamp: params.blockTimestamp,
       vaccineType: params.vaccineType,
       batchNumber: params.batchNumber,
       givenAt: params.givenAt,
@@ -94,7 +98,9 @@ export const verifyMedicalRecord = async (
   recordId: number,
   reviewerId: number,
   status: MedicalRecordStatus,
-  txHash: string
+  txHash: string,
+  blockNumber: number,
+  blockTimestamp: Date
 ) => {
   if (!REVIEWABLE_MEDICAL_STATUS.includes(status)) {
     throw new AppError("Status tidak valid", 400);
@@ -125,8 +131,10 @@ export const verifyMedicalRecord = async (
     {
       status,
       verifiedById: reviewerId,
-      verifiedAt: new Date(),
+      verifiedAt: blockTimestamp,
       txHash,
+      blockNumber,
+      blockTimestamp,
     }
   );
   const updated = await recordRepo.findOne({ where: { id: recordId } });

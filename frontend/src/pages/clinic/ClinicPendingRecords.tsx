@@ -3,6 +3,7 @@ import { medicalRecordApi } from '../../services/apiClient';
 import type { MedicalRecord } from '../../types';
 import { Loader } from '../../components/common/Loader';
 import { PageHeader } from '../../components/common/PageHeader';
+import { sendPreparedTransaction } from '../../services/walletClient';
 
 // Halaman untuk memverifikasi catatan vaksin yang masih pending.
 export const ClinicPendingRecords = () => {
@@ -31,7 +32,9 @@ export const ClinicPendingRecords = () => {
 
   // Update status verifikasi catatan.
   const handleUpdate = async (id: number, status: 'VERIFIED' | 'REJECTED') => {
-    await medicalRecordApi.verify(String(id), status);
+    const prepared = await medicalRecordApi.prepareVerify(String(id), status);
+    const { txHash } = await sendPreparedTransaction(prepared.txRequest);
+    await medicalRecordApi.verify(String(id), status, txHash);
     fetchPending();
   };
 

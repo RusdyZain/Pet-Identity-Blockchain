@@ -4,6 +4,8 @@ import {
   createMedicalRecordController,
   listMedicalRecordsController,
   listPendingRecordsController,
+  prepareMedicalRecordController,
+  prepareVerifyMedicalRecordController,
   verifyMedicalRecordController,
 } from "../controllers/medicalRecordController";
 import { authenticate, authorize } from "../middlewares/authMiddleware";
@@ -11,6 +13,13 @@ import { authenticate, authorize } from "../middlewares/authMiddleware";
 const router = Router();
 
 // Route untuk catatan medis/vaksin.
+router.post(
+  "/pets/:petId/medical-records/prepare",
+  authenticate(),
+  authorize([UserRole.CLINIC]),
+  prepareMedicalRecordController
+);
+
 router.post(
   "/pets/:petId/medical-records",
   authenticate(),
@@ -30,6 +39,13 @@ router.get(
   authenticate(),
   authorize([UserRole.CLINIC]),
   listPendingRecordsController
+);
+
+router.patch(
+  "/medical-records/:id/verify/prepare",
+  authenticate(),
+  authorize([UserRole.CLINIC]),
+  prepareVerifyMedicalRecordController
 );
 
 router.patch(

@@ -48,6 +48,8 @@ export const createPet = async (
     onChainPetId?: number | null;
     dataHash: string;
     txHash: string;
+    blockNumber: number;
+    blockTimestamp: Date;
     name: string;
     species: string;
     breed: string;
@@ -65,6 +67,8 @@ export const createPet = async (
       onChainPetId: data.onChainPetId ?? null,
       dataHash: data.dataHash,
       txHash: data.txHash,
+      blockNumber: data.blockNumber,
+      blockTimestamp: data.blockTimestamp,
       name: data.name,
       species: data.species,
       breed: data.breed,
