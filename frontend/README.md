@@ -36,6 +36,23 @@ Catatan:
 1. Frontend akan otomatis mencoba switch/add network MetaMask sesuai value di atas saat kirim transaksi.
 2. Jika ubah `.env`, restart frontend (`npm run dev` ulang).
 
+Preset cepat:
+
+1. PoA Ganache:
+```ini
+VITE_CHAIN_ID=1337
+VITE_CHAIN_NAME=Ganache Local
+VITE_CHAIN_RPC_URL=http://127.0.0.1:7545
+VITE_CHAIN_CURRENCY_SYMBOL=ETH
+```
+2. PoS Sepolia:
+```ini
+VITE_CHAIN_ID=11155111
+VITE_CHAIN_NAME=Sepolia
+VITE_CHAIN_RPC_URL=https://eth-sepolia.g.alchemy.com/v2/your-key
+VITE_CHAIN_CURRENCY_SYMBOL=ETH
+```
+
 ## 4. Jalankan Frontend
 
 ```powershell

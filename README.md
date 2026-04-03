@@ -271,6 +271,12 @@ BESU_CLIQUE_CHAIN_ID=1337
 ### 10.2 Frontend `.env`
 ```ini
 VITE_API_URL=http://localhost:4000
+
+# Target chain MetaMask (pilih sesuai mode run)
+VITE_CHAIN_ID=1337
+VITE_CHAIN_NAME=Ganache Local
+VITE_CHAIN_RPC_URL=http://127.0.0.1:7545
+VITE_CHAIN_CURRENCY_SYMBOL=ETH
 ```
 
 ## 11. Instalasi dan Migrasi
@@ -313,8 +319,83 @@ npm run deploy:besu
 
 Setelah deploy, update `PET_IDENTITY_ADDRESS` dengan alamat kontrak terbaru.
 
-## 13. Cara Menjalankan Aplikasi
-### 13.1 Full Local dari Nol (4 terminal)
+## 13. Cara Menjalankan Aplikasi (PoA dan PoS)
+### 13.1 Mode PoA Lokal (Ganache) - Rekomendasi Demo Skripsi
+1. Isi `backend/.env`:
+```ini
+BLOCKCHAIN_RPC_URL=http://127.0.0.1:7545
+GANACHE_RPC_URL=http://127.0.0.1:7545
+GANACHE_CHAIN_ID=1337
+DEPLOYER_PRIVATE_KEY=0xPRIVATE_KEY_AKUN_GANACHE_BERSALDO
+```
+2. Isi `frontend/.env`:
+```ini
+VITE_API_URL=http://localhost:4000
+VITE_CHAIN_ID=1337
+VITE_CHAIN_NAME=Ganache Local
+VITE_CHAIN_RPC_URL=http://127.0.0.1:7545
+VITE_CHAIN_CURRENCY_SYMBOL=ETH
+```
+3. Terminal A: jalankan Ganache (GUI/CLI) di `127.0.0.1:7545`.
+4. Terminal B: deploy kontrak ke Ganache.
+```powershell
+cd backend
+npm run deploy:ganache
+```
+5. Salin alamat hasil deploy ke `backend/.env`:
+```ini
+PET_IDENTITY_ADDRESS=0xAlamatKontrakHasilDeploy
+```
+6. Terminal C: jalankan backend.
+```powershell
+cd backend
+npm run dev
+```
+7. Terminal D: jalankan frontend.
+```powershell
+cd frontend
+npm run dev
+```
+8. Pastikan MetaMask berada di network Ganache chainId `1337`.
+
+### 13.2 Mode PoS Testnet (Sepolia)
+1. Siapkan Sepolia ETH untuk akun deployer (faucet).
+2. Isi `backend/.env`:
+```ini
+SEPOLIA_RPC_URL=https://eth-sepolia.g.alchemy.com/v2/your-key
+BLOCKCHAIN_RPC_URL=https://eth-sepolia.g.alchemy.com/v2/your-key
+DEPLOYER_PRIVATE_KEY=0xPRIVATE_KEY_AKUN_SEPOLIA
+```
+3. Deploy kontrak ke Sepolia:
+```powershell
+cd backend
+npm run deploy:sepolia
+```
+4. Salin alamat hasil deploy ke:
+```ini
+PET_IDENTITY_ADDRESS=0xAlamatKontrakSepolia
+```
+5. Isi `frontend/.env`:
+```ini
+VITE_API_URL=http://localhost:4000
+VITE_CHAIN_ID=11155111
+VITE_CHAIN_NAME=Sepolia
+VITE_CHAIN_RPC_URL=https://eth-sepolia.g.alchemy.com/v2/your-key
+VITE_CHAIN_CURRENCY_SYMBOL=ETH
+```
+6. Jalankan backend dan frontend:
+```powershell
+cd backend
+npm run dev
+```
+```powershell
+cd frontend
+npm run dev
+```
+7. Pastikan MetaMask di Sepolia dan wallet punya Sepolia ETH untuk gas.
+
+### 13.3 Mode Local Hardhat Node (Opsional)
+Mode ini bukan PoA/PoS nyata, hanya local dev chain dari Hardhat.
 1. Terminal A:
 ```powershell
 cd backend
@@ -325,18 +406,21 @@ npx hardhat node
 cd backend
 npm run deploy:localhost
 ```
-3. Terminal C:
-```powershell
-cd backend
-npm run dev
+3. Set `backend/.env`:
+```ini
+BLOCKCHAIN_RPC_URL=http://127.0.0.1:8545
+PET_IDENTITY_ADDRESS=0xAlamatKontrakLocalhost
 ```
-4. Terminal D:
-```powershell
-cd frontend
-npm run dev
+4. Set `frontend/.env`:
+```ini
+VITE_CHAIN_ID=31337
+VITE_CHAIN_NAME=Hardhat Local
+VITE_CHAIN_RPC_URL=http://127.0.0.1:8545
+VITE_CHAIN_CURRENCY_SYMBOL=ETH
 ```
+5. Jalankan backend + frontend (`npm run dev` masing-masing).
 
-### 13.2 Harian (tanpa deploy ulang kontrak)
+### 13.4 Harian (tanpa deploy ulang kontrak)
 Biasanya cukup 3 terminal: node blockchain, backend, frontend.
 
 ## 14. Skenario Operasional Awam

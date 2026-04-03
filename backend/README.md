@@ -107,7 +107,31 @@ Rekomendasi 4 terminal:
 3. Terminal C: jalankan backend (`npm run dev`).
 4. Terminal D: jalankan frontend (`cd ../frontend && npm run dev`).
 
-## 8. Skenario Uji Manual End-to-End
+## 8. Urutan Terminal untuk Uji PoS (Sepolia)
+
+1. Pastikan `backend/.env` berisi:
+   - `SEPOLIA_RPC_URL=https://...`
+   - `BLOCKCHAIN_RPC_URL=https://...` (endpoint Sepolia yang sama)
+   - `DEPLOYER_PRIVATE_KEY=0x...` (akun deployer yang punya Sepolia ETH)
+2. Deploy contract:
+```powershell
+cd backend
+npm run deploy:sepolia
+```
+3. Update `PET_IDENTITY_ADDRESS` di `backend/.env` dengan alamat hasil deploy Sepolia.
+4. Jalankan backend:
+```powershell
+cd backend
+npm run dev
+```
+5. Jalankan frontend di terminal terpisah:
+```powershell
+cd frontend
+npm run dev
+```
+6. Pastikan MetaMask berada di jaringan Sepolia.
+
+## 9. Skenario Uji Manual End-to-End
 
 1. Buka frontend `http://localhost:5173/register`.
 2. Register wallet OWNER (connect wallet + sign challenge).
@@ -117,15 +141,15 @@ Rekomendasi 4 terminal:
 6. Frontend kirim `txHash` ke backend.
 7. Backend verifikasi receipt/event/sender lalu simpan data ke DB.
 
-## 9. Cek Hasil Testing
+## 10. Cek Hasil Testing
 
-### 9.1 Cek Blockchain (Ganache/Sepolia explorer)
+### 10.1 Cek Blockchain (Ganache/Sepolia explorer)
 
 1. Pastikan transaksi muncul.
 2. `to` harus alamat kontrak `PET_IDENTITY_ADDRESS`.
 3. Status transaksi sukses/mined.
 
-### 9.2 Cek Database PostgreSQL
+### 10.2 Cek Database PostgreSQL
 
 ```sql
 SELECT id, wallet_address
@@ -147,7 +171,7 @@ LIMIT 10;
 
 Jika `tx_hash`, `block_number`, `block_timestamp` terisi, sinkronisasi on-chain -> DB berhasil.
 
-## 10. Load Test (Locust)
+## 11. Load Test (Locust)
 
 Folder load test ada di `../performance`.
 
@@ -171,7 +195,7 @@ Skenario yang dijalankan:
 
 Laporan ada di `performance/reports` (`*_stats.csv`, `*_failures.csv`, `*_stats_history.csv`).
 
-## 11. Troubleshooting
+## 12. Troubleshooting
 
 1. `Error HH8 ... private key too short`.
    - Perbaiki `DEPLOYER_PRIVATE_KEY` agar valid 32-byte hex.
@@ -186,7 +210,7 @@ Laporan ada di `performance/reports` (`*_stats.csv`, `*_failures.csv`, `*_stats_
 6. Transaksi tidak muncul di Ganache.
    - Cek MetaMask network, chainId, dan RPC harus sama dengan Ganache.
 
-## 12. Referensi Endpoint Utama
+## 13. Referensi Endpoint Utama
 
 1. `POST /auth/wallet/challenge`
 2. `POST /auth/register`
