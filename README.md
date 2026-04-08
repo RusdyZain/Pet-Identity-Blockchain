@@ -481,3 +481,212 @@ frontend/
     context/
 performance/
 ```
+
+## 18. Draft Bab IV: Implementasi, Pembahasan, dan Pengujian
+
+### 4.1 Implementasi Sistem
+
+#### 4.1.1 Implementasi Arsitektur Sistem
+Implementasi arsitektur sistem menggunakan pola tiga lapis:
+1. Frontend (`React + Vite`) sebagai antarmuka pengguna.
+2. Backend (`Node.js + Express + TypeORM`) sebagai orkestrator logika bisnis, validasi, dan sinkronisasi data.
+3. Blockchain (`Ethereum Sepolia` untuk testnet PoS, dengan opsi PoA lokal untuk pengujian) sebagai lapisan integritas data.
+
+Hubungan antar komponen ditunjukkan pada diagram berikut.
+
+```mermaid
+flowchart LR
+    U[User: Owner/Clinic/Verifier] --> FE[Frontend React]
+    FE --> MM[MetaMask Wallet]
+    FE --> BE[Backend Node.js Express]
+    BE --> DB[(PostgreSQL)]
+    MM --> RPC[JSON-RPC Endpoint]
+    BE --> RPC
+    RPC --> SC[(PetIdentityRegistry\nEthereum Sepolia)]
+```
+
+Alur data end-to-end (user -> blockchain) adalah sebagai berikut:
+1. User mengisi data di frontend.
+2. Frontend meminta backend menyiapkan payload transaksi (`txRequest` berisi `to` dan `data` ABI-encoded).
+3. Frontend mengirim `txRequest` ke MetaMask untuk ditandatangani user.
+4. MetaMask menyiarkan transaksi ke network blockchain melalui JSON-RPC.
+5. Setelah transaksi mined, frontend menerima `txHash`.
+6. Frontend mengirim `txHash` ke backend.
+7. Backend memverifikasi receipt dan event log dari chain, lalu menyimpan data bisnis + metadata blockchain (`txHash`, `blockNumber`, `blockTimestamp`) ke PostgreSQL.
+
+Diagram urutan end-to-end:
+
+```mermaid
+sequenceDiagram
+    participant U as User
+    participant FE as Frontend React
+    participant BE as Backend Node.js
+    participant MM as MetaMask
+    participant RPC as Ethereum Sepolia RPC
+    participant SC as Smart Contract
+    participant DB as PostgreSQL
+
+    U->>FE: Input data (registrasi/rekam medis/verifikasi)
+    FE->>BE: Request prepare transaction
+    BE-->>FE: txRequest + dataHash
+    FE->>MM: eth_sendTransaction(txRequest)
+    MM->>RPC: Broadcast signed transaction
+    RPC->>SC: Execute function
+    RPC-->>FE: txHash + receipt (setelah mined)
+    FE->>BE: Submit payload + txHash
+    BE->>RPC: Ambil receipt dan event
+    BE->>BE: Validasi sender, event, dataHash
+    BE->>DB: Simpan data + tx metadata
+    BE-->>FE: Success response
+```
+
+#### 4.1.2 Implementasi Smart Contract
+Smart contract `PetIdentityRegistry` diimplementasikan untuk menyimpan bukti transaksi dan status validasi data penting.
+
+Desain logika utama:
+1. `mapping(uint256 => Pet) pets` dipakai agar lookup hewan berdasarkan `petId` bersifat O(1) dan hemat gas dibanding pencarian array.
+2. `mapping(uint256 => MedicalRecord[]) medicalRecords` dipakai untuk mengelompokkan catatan medis per hewan.
+3. `mapping(bytes32 => uint256) petHashToId` dipakai agar hash data dapat ditelusuri kembali ke `petId` secara cepat dan mencegah duplikasi hash.
+4. `mapping(uint256 => RecordPointer) recordPointers` dipakai agar verifikasi catatan medis berdasarkan `recordId` dapat langsung menemukan lokasi data tanpa iterasi panjang.
+
+Alasan hash yang disimpan ke blockchain:
+1. Data detail hewan/medis tidak disimpan penuh on-chain untuk mengurangi biaya gas.
+2. Hash (`bytes32`) berfungsi sebagai sidik jari data untuk uji integritas: perubahan data off-chain akan menghasilkan hash berbeda.
+3. Pendekatan ini menjaga privasi relatif lebih baik karena data sensitif tetap berada di database aplikasi.
+
+Constraint implementasi:
+1. Gas cost:
+   - Operasi tulis on-chain (`registerPet`, `addMedicalRecord`, `verifyMedicalRecord`, `updatePetBasicData`) adalah operasi berbiaya.
+   - Karena itu, hanya data ringkas (hash + metadata audit) yang dicatat di chain.
+2. Immutability:
+   - Data transaksi yang sudah masuk blok tidak dapat dihapus/diubah.
+   - Koreksi dilakukan dengan transaksi baru (append), bukan overwrite histori on-chain.
+
+#### 4.1.3 Implementasi Sistem Eksternal (Per Actor)
+
+##### 4.1.3.1 Pemilik Hewan
+1. Registrasi:
+   - Pemilik mendaftarkan data hewan melalui alur `prepare-registration -> MetaMask transaction -> submit txHash`.
+   - Backend memverifikasi event `PetRegistered` sebelum menyimpan data ke database.
+2. Transfer ownership:
+   - Aplikasi saat ini menjalankan proses bisnis transfer di layer database (status pending dan acceptance owner baru).
+   - Smart contract sudah menyediakan fungsi `transferOwnership` untuk finalisasi on-chain sehingga histori transfer dapat ditambatkan ke `txHash` pada pengembangan lanjutan.
+
+Interaksi blockchain utama untuk aktor owner saat ini adalah registrasi hewan dan aksi lain yang membutuhkan transaksi terverifikasi.
+
+##### 4.1.3.2 Klinik
+1. Input medical record:
+   - Klinik mengirim data rekam medis, backend membuat `txRequest` untuk `addMedicalRecord`.
+   - Klinik menandatangani transaksi melalui MetaMask, lalu backend memverifikasi event `MedicalRecordAdded`.
+2. Verifikasi:
+   - Klinik melakukan review status (`VERIFIED` atau `REJECTED`) melalui fungsi `verifyMedicalRecord`.
+   - Backend memvalidasi event `MedicalRecordReviewed` dan memperbarui status data di database.
+
+##### 4.1.3.3 Verifikator
+1. Trace publik:
+   - Verifikator menggunakan `publicId` untuk menelusuri data yang sudah dipublikasikan aplikasi.
+   - Bukti transaksi dapat dilacak melalui `txHash` yang tersimpan pada entitas terkait dan dapat dibuka di block explorer.
+
+Setiap aksi user yang masuk kategori aksi on-chain menghasilkan transaksi blockchain dengan `txHash`.
+
+#### 4.1.4 Integrasi Software dengan Blockchain
+Integrasi software ke blockchain dilakukan dengan mekanisme berikut:
+1. Transport protocol: JSON-RPC.
+2. Library blockchain di backend: `ethers.js` (`JsonRpcProvider`, `Contract`, decoding event ABI).
+3. Wallet signer di frontend: MetaMask (`eth_requestAccounts`, `personal_sign`, `eth_sendTransaction`).
+
+Flow transaksi:
+1. Input user diterima frontend.
+2. Backend menghasilkan data hash dan `txRequest` (fungsi kontrak + ABI encoded data).
+3. Frontend meneruskan `txRequest` ke MetaMask.
+4. User menandatangani transaksi di MetaMask.
+5. Transaksi dibroadcast ke network (Sepolia/PoA lokal) dan menunggu mining/confirmation.
+6. `txHash` dikirim kembali ke backend untuk validasi receipt, validasi event, dan persist metadata.
+
+Analisis kenapa perlu MetaMask:
+1. Private key tetap berada di sisi user (non-custodial), sehingga backend tidak menyimpan kredensial blockchain user.
+2. Signature wallet memberikan bukti kriptografis bahwa aksi benar disetujui pemilik akun.
+3. Model ini menurunkan risiko single point of compromise pada server backend.
+
+Analisis kenapa tidak langsung backend:
+1. Jika backend menandatangani semua transaksi user, maka kontrol transaksi menjadi terpusat.
+2. Pendekatan backend-signer menggeser trust dari user ke server dan meningkatkan risiko kebocoran private key.
+3. Untuk sistem audit publik, non-repudiation lebih kuat jika transaksi ditandatangani langsung oleh wallet user.
+
+### 4.2 Pembahasan Sistem
+
+#### 4.2.1 Analisis Arsitektur Hybrid (On-Chain + Off-Chain)
+Sistem tidak diimplementasikan sebagai full blockchain karena alasan teknis dan operasional:
+1. On-chain menyimpan hash transaksi dan metadata audit (`txHash`, block info).
+2. Off-chain (PostgreSQL) menyimpan data detail, query kompleks, relasi, dan kebutuhan operasional aplikasi.
+
+Analisis arsitektur hybrid:
+1. Efisiensi gas:
+   - Menyimpan data detail (string panjang, histori lengkap) langsung on-chain akan mahal.
+   - Penyimpanan hash menurunkan jejak data on-chain.
+2. Skalabilitas:
+   - Operasi list/filter/report lebih efisien di DB relasional.
+   - Blockchain difokuskan untuk finality dan audit, bukan beban query tinggi.
+3. Keamanan:
+   - Integritas data dijaga melalui verifikasi hash terhadap event on-chain.
+   - Jika ada manipulasi off-chain, mismatch hash dapat dideteksi.
+
+#### 4.2.2 Analisis Keamanan Sistem
+1. Immutability:
+   - Data transaksi blockchain tidak bisa diubah secara retroaktif, sehingga rekam audit lebih kuat.
+2. Signature wallet:
+   - Login menggunakan challenge + signature (`personal_sign`) memverifikasi kepemilikan wallet tanpa password.
+   - Transaksi state-changing ditandatangani langsung di MetaMask.
+3. Hash integrity:
+   - Hash data pet/medis/koreksi dibandingkan dengan nilai event on-chain.
+   - Backend menolak sinkronisasi jika sender transaksi atau hash tidak cocok.
+
+#### 4.2.3 Analisis Transparansi dan Traceability
+1. Setiap transaksi on-chain memiliki `txHash` unik.
+2. `txHash` disimpan pada data aplikasi untuk membentuk audit trail lintas layer (frontend-backend-blockchain).
+3. Dengan `txHash`, pihak eksternal dapat memverifikasi keberadaan dan status transaksi melalui block explorer.
+
+### 4.3 Pengujian Sistem
+
+#### 4.3.1 Pengujian Smart Contract
+Pengujian smart contract dilakukan melalui:
+1. Kompilasi dan deployment kontrak (`hardhat compile` + script deploy).
+2. Smoke test konektivitas kontrak (`scripts/smokeTest.js`).
+3. Validasi integrasi receipt/event pada backend (`confirmRegisterPetTx`, `confirmAddMedicalRecordTx`, `confirmVerifyMedicalRecordTx`, `confirmUpdatePetBasicDataTx`).
+
+Seluruh skenario pengujian yang dijalankan menunjukkan status PASS. Hal ini memvalidasi bahwa logika kontrak, event emission, dan sinkronisasi metadata transaksi bekerja sesuai rancangan.
+
+#### 4.3.2 Pengujian Blackbox
+Pengujian blackbox dilakukan pada endpoint utama (auth, pet, medical record, correction, trace) dengan fokus input-output dan validasi rule akses.
+
+Analisis hasil:
+1. Hasil pengujian menunjukkan seluruh fungsi berjalan sesuai spesifikasi.
+2. Hal ini mengindikasikan bahwa sistem telah memenuhi kebutuhan fungsional yang dirancang pada tahap analisis (Bab III).
+3. Validasi error handling (misal `txHash` wajib, role-based access, signature mismatch) juga memastikan sistem menolak kondisi tidak valid secara konsisten.
+
+#### 4.3.3 Pengujian Kinerja
+Pengujian kinerja menggunakan Locust pada skenario 10, 50, dan 100 user konkuren (durasi 5 menit per skenario).
+
+Interpretasi hasil kinerja:
+1. Response time endpoint murni REST (tanpa transaksi on-chain) cenderung lebih rendah dan stabil.
+2. Endpoint yang menunggu finalitas transaksi blockchain menunjukkan latensi lebih tinggi.
+3. Bottleneck utama berada pada proses blockchain (broadcast, mempool, mining/confirmation), bukan pada rendering frontend.
+4. Pada mode PoA lokal, konfirmasi transaksi umumnya lebih cepat dibanding Sepolia karena lingkungan validator lebih kecil dan terkontrol.
+
+#### 4.3.4 Pengujian Blockchain (PoA / Aspek Blockchain)
+a. Desentralisasi
+1. Arsitektur tidak bergantung pada satu server aplikasi untuk pembuktian transaksi karena bukti berada di jaringan blockchain.
+2. Node blockchain memegang ledger transaksi terdistribusi sesuai topologi jaringan yang dipakai (Sepolia/PoA lokal).
+
+b. Transparansi
+1. Bukti transaksi tersedia dalam bentuk `txHash`.
+2. `txHash` dapat diverifikasi pada explorer, sehingga proses audit dapat dilakukan lintas pihak.
+
+c. Immutability
+1. Data on-chain tidak mendukung update/delete historis secara langsung.
+2. Perubahan direpresentasikan sebagai transaksi baru (append-only), sehingga jejak audit tetap utuh.
+
+d. Konsensus (PoA / testnet behavior)
+1. Pada Sepolia, finalisasi transaksi mengikuti mekanisme konsensus Ethereum testnet (validator jaringan publik).
+2. Pada PoA lokal (misalnya Besu Clique/Ganache untuk kebutuhan pengujian), validator/authority lebih terbatas sehingga throughput dan kecepatan konfirmasi relatif lebih tinggi.
+3. Dampaknya, mode PoA cocok untuk demonstrasi dan uji cepat, sedangkan Sepolia lebih representatif untuk perilaku jaringan publik.
