@@ -2,11 +2,13 @@ import app from "./app";
 import { ENV } from "./config/env";
 import { AppDataSource } from "./config/dataSource";
 import { ensureSchema } from "./config/ensureSchema";
+import { seedAdminFromEnv } from "./config/seedAdmin";
 
 // Mulai server setelah koneksi database siap.
 const start = async () => {
   await AppDataSource.initialize();
   await ensureSchema();
+  await seedAdminFromEnv();
   app.listen(ENV.port, () => {
     console.log(`Server running on port ${ENV.port}`);
   });

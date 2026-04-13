@@ -28,6 +28,22 @@ npx prisma migrate deploy
 npm run chain:compile
 ```
 
+## 3.1 Instalasi di Laptop Baru (Tanpa `db:seed`)
+
+Untuk setup awal di laptop lain, urutannya:
+
+1. Install dependency backend (`npm install`).
+2. Siapkan `backend/.env` (minimal `DATABASE_URL`, `JWT_SECRET`, `BLOCKCHAIN_RPC_URL`, `PET_IDENTITY_ADDRESS`).
+3. Jalankan migrasi (`npx prisma migrate deploy`).
+4. Jalankan backend (`npm run dev`).
+
+Catatan penting:
+1. Tidak perlu `npm run db:seed` (script itu memang tidak dipakai di repo ini).
+2. Jika ingin admin awal otomatis, isi `ADMIN_SEED_ENABLED=true` + `ADMIN_EMAIL` + `ADMIN_WALLET_ADDRESS`.
+3. Seed admin dijalankan otomatis saat backend startup (`npm run dev` / `npm run start`), dengan log:
+   - `[seed-admin] Admin created for ...`
+   - `[seed-admin] Admin synced for ...`
+
 ## 4. Konfigurasi `.env`
 
 Buat/isi file `backend/.env` dengan pola ini.
@@ -51,12 +67,22 @@ GANACHE_CHAIN_ID=1337
 # PoS testnet (Sepolia/Goerli) - isi jika dipakai
 SEPOLIA_RPC_URL=https://eth-sepolia.g.alchemy.com/v2/your-key
 GOERLI_RPC_URL=https://eth-goerli.g.alchemy.com/v2/your-key
+
+# Optional: bootstrap ADMIN otomatis saat backend startup
+ADMIN_SEED_ENABLED=true
+ADMIN_NAME=Super Admin
+ADMIN_EMAIL=admin@example.com
+ADMIN_WALLET_ADDRESS=0xYourAdminWalletAddress
+# Optional: dipakai hanya untuk form CRUD admin (bukan login wallet)
+ADMIN_PASSWORD=isi_jika_perlu
 ```
 
 Catatan:
 1. `DEPLOYER_PRIVATE_KEY` wajib 32-byte hex (64 karakter hex setelah `0x`).
 2. `BLOCKCHAIN_RPC_URL` wajib menunjuk ke network yang sama dengan contract address.
 3. Backend saat startup menjalankan `ensureSchema` untuk menambah kolom/index baru dan dedupe `wallet_address` lama jika duplikat.
+4. Jika `ADMIN_SEED_ENABLED=true`, backend akan upsert akun `ADMIN` berdasarkan `ADMIN_EMAIL` + `ADMIN_WALLET_ADDRESS`.
+5. Login tetap lewat wallet (`/login`), bukan password.
 
 ## 5. Deploy Smart Contract
 
@@ -209,6 +235,9 @@ Laporan ada di `performance/reports` (`*_stats.csv`, `*_failures.csv`, `*_stats_
    - Biasanya muncul saat shutdown process; jika alamat kontrak tercetak dan file `deployed/petIdentity.json` terupdate, deploy tetap berhasil.
 6. Transaksi tidak muncul di Ganache.
    - Cek MetaMask network, chainId, dan RPC harus sama dengan Ganache.
+7. Startup gagal saat admin seed aktif.
+   - Pastikan `ADMIN_EMAIL` dan `ADMIN_WALLET_ADDRESS` terisi valid.
+   - Pastikan wallet admin tidak dipakai akun email lain (akan ditolak sebagai konflik).
 
 ## 13. Referensi Endpoint Utama
 

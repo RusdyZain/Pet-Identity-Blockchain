@@ -255,6 +255,14 @@ JWT_SECRET=your_jwt_secret
 PORT=4000
 BLOCKCHAIN_RPC_URL=http://127.0.0.1:8545
 PET_IDENTITY_ADDRESS=0xYourDeployedContract
+
+# Optional: bootstrap ADMIN otomatis saat backend startup
+ADMIN_SEED_ENABLED=true
+ADMIN_NAME=Super Admin
+ADMIN_EMAIL=admin@example.com
+ADMIN_WALLET_ADDRESS=0xYourAdminWalletAddress
+# Optional: hanya untuk CRUD admin, bukan login
+ADMIN_PASSWORD=isi_jika_perlu
 ```
 
 Untuk deploy Hardhat (opsional sesuai target):
@@ -293,6 +301,19 @@ npm run chain:compile
 cd frontend
 npm install
 ```
+
+### 11.3 Tentang `db:seed` dan Setup Laptop Baru
+1. Tidak perlu menjalankan `npm run db:seed` (script itu tidak dipakai di repo ini).
+2. Untuk admin awal, gunakan seed otomatis via `backend/.env`:
+```ini
+ADMIN_SEED_ENABLED=true
+ADMIN_EMAIL=admin@example.com
+ADMIN_WALLET_ADDRESS=0xYourAdminWalletAddress
+```
+3. Seed admin otomatis berjalan saat backend start (`npm run dev` atau `npm run start`).
+4. Cek log backend untuk memastikan:
+   - `[seed-admin] Admin created for ...`
+   - `[seed-admin] Admin synced for ...`
 
 ## 12. Deploy Smart Contract
 ### 12.1 Local Hardhat
@@ -457,10 +478,13 @@ powershell -ExecutionPolicy Bypass -File performance/run_scenarios.ps1
 6. Frontend tidak bisa hit backend
    - Cek `frontend/.env` `VITE_API_URL`.
 7. Belum punya akun ADMIN awal
-   - Register dulu sebagai OWNER, lalu ubah role via SQL:
-```sql
-UPDATE users SET role = 'ADMIN' WHERE email = 'email_admin@contoh.com';
+   - Bisa pakai seed ENV, isi di `backend/.env`:
+```ini
+ADMIN_SEED_ENABLED=true
+ADMIN_EMAIL=admin@example.com
+ADMIN_WALLET_ADDRESS=0xYourAdminWalletAddress
 ```
+   - Restart backend, akun akan otomatis dibuat/diupdate jadi `ADMIN`.
 
 ## 17. Struktur Direktori
 ```text
