@@ -1,6 +1,6 @@
 {
-  "network": "ganache",
-  "chainId": 1337,
-  "address": "0x1D17A6a63A6eAfaADd8A2cCaC95a910fE60edbaD",
-  "deployedAt": "2026-04-03T09:56:39.242Z"
+  "network": "sepolia",
+  "chainId": 11155111,
+  "address": "0xaE37b23182817bA264bFC1857efd04ce7803Bc76",
+  "deployedAt": "2026-04-14T03:16:22.701Z"
 }

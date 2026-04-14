@@ -28,7 +28,17 @@ export const LoginPage = () => {
       const user = await login(authPayload);
       navigate(redirectMap[user.role] ?? '/owner/dashboard', { replace: true });
     } catch (err: any) {
-      setError(err?.response?.data?.message ?? err?.message ?? 'Gagal masuk menggunakan wallet.');
+      const status = err?.response?.status;
+      const apiMessage = err?.response?.data?.message;
+      if (status === 404) {
+        setError(apiMessage ?? 'Wallet belum terdaftar. Silakan daftar terlebih dahulu.');
+        return;
+      }
+      if (err?.message === 'Network Error') {
+        setError('Backend tidak dapat diakses. Pastikan server berjalan dan URL API benar.');
+        return;
+      }
+      setError(apiMessage ?? err?.message ?? 'Gagal masuk menggunakan wallet.');
     }
   };
 
