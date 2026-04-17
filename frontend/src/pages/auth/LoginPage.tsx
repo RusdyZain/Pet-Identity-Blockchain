@@ -46,7 +46,9 @@ export const LoginPage = () => {
     <div className="space-y-6">
       <div>
         <h2 className="text-xl font-semibold text-slate-800">Masuk</h2>
-        <p className="text-sm text-slate-500">Autentikasi menggunakan wallet MetaMask.</p>
+        <p className="text-sm text-slate-500">
+          Autentikasi menggunakan wallet MetaMask untuk Owner, Klinik, dan Admin.
+        </p>
       </div>
       <div className="space-y-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
         <p className="text-sm text-slate-600">
@@ -68,6 +70,9 @@ export const LoginPage = () => {
         </button>
       </div>
       <div className="text-sm text-slate-500">
+        <p className="rounded-xl bg-mist/70 px-3 py-2 text-xs">
+          Fitur Owner dan Klinik dipisah pada dashboard berbeda setelah login.
+        </p>
         <p>
           Akses publik untuk penelusuran identitas tersedia di halaman{' '}
           <button

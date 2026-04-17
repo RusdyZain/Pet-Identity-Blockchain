@@ -36,7 +36,10 @@ export const OwnerNotificationsPage = () => {
 
   return (
     <div className="space-y-4">
-      <PageHeader title="Notifikasi" />
+      <PageHeader
+        title="Notifikasi Pemilik"
+        description="Lihat update transfer kepemilikan, koreksi data, dan status verifikasi medis hewan Anda."
+      />
       {loading && <Loader label="Memuat notifikasi..." />}
       {error && <p className="text-sm text-red-600">{error}</p>}
       <div className="space-y-3">

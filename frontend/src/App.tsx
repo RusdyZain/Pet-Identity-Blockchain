@@ -58,6 +58,7 @@ const App = () => {
           <Route path="/clinic/medical-records/pending" element={<ClinicPendingRecords />} />
           <Route path="/clinic/corrections" element={<ClinicCorrectionsPage />} />
           <Route path="/clinic/notifications" element={<ClinicNotificationsPage />} />
+          <Route path="/clinic/blockchain-simulator" element={<BlockchainSimulatorPage />} />
         </Route>
       </Route>
 
@@ -67,12 +68,6 @@ const App = () => {
           <Route path="/admin/dashboard" element={<AdminDashboard />} />
           <Route path="/admin/users" element={<AdminUsersPage />} />
           <Route path="/admin/pets" element={<AdminPetsPage />} />
-        </Route>
-      </Route>
-
-      {/* Admin dan klinik bisa membuka halaman simulasi blockchain */}
-      <Route element={<ProtectedRoute allowedRoles={['ADMIN', 'CLINIC']} />}>
-        <Route element={<DashboardLayout />}>
           <Route path="/admin/blockchain-simulator" element={<BlockchainSimulatorPage />} />
         </Route>
       </Route>

@@ -6,7 +6,6 @@ import { CorrectionRequest } from "../entities/CorrectionRequest";
 import { OwnershipHistory } from "../entities/OwnershipHistory";
 import { Notification } from "../entities/Notification";
 import { AppError } from "../utils/errors";
-import { hashPassword } from "../utils/password";
 
 const ownerSelect = {
   id: true,
@@ -30,15 +29,14 @@ export const getOwnerProfile = async (userId: number) => {
   return owner;
 };
 
-// Update data akun owner (nama, email, password).
+// Update data akun owner (nama & email).
 export const updateOwnerProfile = async (params: {
   userId: number;
   name?: string;
   email?: string;
-  password?: string;
 }) => {
-  const { userId, name, email, password } = params;
-  if (!name && !email && !password) {
+  const { userId, name, email } = params;
+  if (!name && !email) {
     throw new AppError("Tidak ada data yang diperbarui", 400);
   }
 
@@ -77,14 +75,6 @@ export const updateOwnerProfile = async (params: {
       }
     }
     data.email = trimmedEmail;
-  }
-
-  if (typeof password === "string") {
-    const trimmedPassword = password.trim();
-    if (!trimmedPassword) {
-      throw new AppError("Password tidak boleh kosong", 400);
-    }
-    data.passwordHash = await hashPassword(trimmedPassword);
   }
 
   await userRepo.update({ id: userId }, data);

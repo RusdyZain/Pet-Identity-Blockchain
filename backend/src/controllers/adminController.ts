@@ -63,14 +63,13 @@ export const createUserController = async (
   next: NextFunction
 ) => {
   try {
-    const { name, email, password, role, walletAddress } = req.body;
-    if (!name || !email || !password || !role) {
+    const { name, email, role, walletAddress } = req.body;
+    if (!name || !email || !role) {
       throw new AppError("Missing required fields", 400);
     }
     const user = await createUser({
       name,
       email,
-      password,
       role: role as UserRole,
       walletAddress,
     });
@@ -91,17 +90,15 @@ export const updateUserController = async (
     if (!Number.isInteger(userId)) {
       throw new AppError("Invalid user id", 400);
     }
-    const { name, email, password, role, walletAddress } = req.body;
+    const { name, email, role, walletAddress } = req.body;
     const params: {
       name?: string;
       email?: string;
-      password?: string;
       role?: UserRole;
       walletAddress?: string;
     } = {};
     if (name !== undefined) params.name = name;
     if (email !== undefined) params.email = email;
-    if (password !== undefined) params.password = password;
     if (role !== undefined) params.role = role as UserRole;
     if (walletAddress !== undefined) params.walletAddress = walletAddress;
     const user = await updateUser(userId, params);

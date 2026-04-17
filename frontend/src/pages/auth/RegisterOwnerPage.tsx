@@ -64,6 +64,9 @@ export const RegisterOwnerPage = () => {
         <p className="text-sm text-slate-500">
           Lengkapi data akun untuk mengakses layanan registrasi dan riwayat vaksin.
         </p>
+        <p className="mt-2 rounded-xl bg-mist/70 px-3 py-2 text-xs text-slate-600">
+          Halaman ini khusus role OWNER. Akun CLINIC dan ADMIN dikelola terpisah oleh administrator.
+        </p>
       </div>
       <form className="space-y-4" onSubmit={handleSubmit}>
         <TextField

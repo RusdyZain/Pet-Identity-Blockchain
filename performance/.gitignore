@@ -1,0 +1,38 @@
+# Python / Locust
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+.pytest_cache/
+
+# Logs and temporary files
+logs/
+*.log
+tmp/
+temp/
+
+# Environment files
+.env
+.env.*
+!.env.example
+k6/.env
+k6/.env.*
+!k6/.env.example
+
+# K6 local artifacts
+k6/results/
+k6/reports/
+k6/archive/
+k6/*.html
+k6/*-summary.json
+k6/*-results.json
+k6/*.csv
+k6/*.tmp
+
+# IDE / system files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.sw?

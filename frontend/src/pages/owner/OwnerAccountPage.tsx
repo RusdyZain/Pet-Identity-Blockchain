@@ -13,8 +13,6 @@ export const OwnerAccountPage = () => {
   const [form, setForm] = useState({
     name: user?.name ?? '',
     email: user?.email ?? '',
-    password: '',
-    passwordConfirm: '',
   });
   const [walletAddress, setWalletAddress] = useState<string | null>(null);
   const [loadingProfile, setLoadingProfile] = useState(true);
@@ -70,20 +68,12 @@ export const OwnerAccountPage = () => {
       return;
     }
 
-    if (form.password && form.password !== form.passwordConfirm) {
-      setError('Konfirmasi password tidak sama.');
-      return;
-    }
-
     setSaving(true);
     try {
-      const payload: { name: string; email: string; password?: string } = {
+      const payload: { name: string; email: string } = {
         name: form.name.trim(),
         email: form.email.trim(),
       };
-      if (form.password) {
-        payload.password = form.password;
-      }
       const updated = await ownerAccountApi.update(payload);
       updateUser({
         id: updated.id,
@@ -92,11 +82,6 @@ export const OwnerAccountPage = () => {
         role: updated.role,
       });
       setWalletAddress(updated.walletAddress ?? null);
-      setForm((prev) => ({
-        ...prev,
-        password: '',
-        passwordConfirm: '',
-      }));
       setSuccess('Profil berhasil diperbarui.');
     } catch (err: any) {
       setError(err?.response?.data?.message ?? 'Gagal memperbarui profil.');
@@ -133,7 +118,9 @@ export const OwnerAccountPage = () => {
       />
       <section className="rounded-3xl border border-white/60 bg-white/90 p-6 shadow-lg shadow-primary/5">
         <h3 className="text-lg font-semibold text-secondary">Profil</h3>
-        <p className="mt-1 text-sm text-slate-500">Perbarui nama, email, dan password.</p>
+        <p className="mt-1 text-sm text-slate-500">
+          Perbarui nama dan email. Login akun ini menggunakan wallet blockchain (tanpa password).
+        </p>
         {loadingProfile ? (
           <p className="mt-4 text-sm text-slate-500">Memuat profil...</p>
         ) : (
@@ -145,20 +132,6 @@ export const OwnerAccountPage = () => {
               value={form.email}
               onChange={handleChange('email')}
               required
-            />
-            <TextField
-              label="Password Baru"
-              type="password"
-              value={form.password}
-              onChange={handleChange('password')}
-              placeholder="Kosongkan jika tidak ingin mengganti"
-            />
-            <TextField
-              label="Konfirmasi Password Baru"
-              type="password"
-              value={form.passwordConfirm}
-              onChange={handleChange('passwordConfirm')}
-              placeholder="Ulangi password baru"
             />
             {walletAddress && (
               <div className="rounded-2xl bg-mist/70 px-4 py-3 text-xs text-slate-500">

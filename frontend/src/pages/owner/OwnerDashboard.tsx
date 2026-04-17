@@ -36,6 +36,22 @@ export const OwnerDashboard = () => {
         title="Dashboard Pemilik"
         description="Kelola identitas hewan peliharaan, riwayat vaksin, koreksi data, dan transfer kepemilikan."
       />
+      <section className="grid gap-3 md:grid-cols-4">
+        {[
+          { title: 'Registrasi Hewan', desc: 'Mendaftarkan hewan baru ke sistem dan blockchain.' },
+          { title: 'Ajukan Koreksi', desc: 'Mengusulkan perubahan data identitas hewan.' },
+          { title: 'Transfer Kepemilikan', desc: 'Memindahkan kepemilikan ke owner lain.' },
+          { title: 'Pantau Status', desc: 'Melihat histori vaksin dan notifikasi akun.' },
+        ].map((item) => (
+          <div
+            key={item.title}
+            className="rounded-2xl border border-white/60 bg-white/90 p-4 shadow-sm"
+          >
+            <p className="text-sm font-semibold text-secondary">{item.title}</p>
+            <p className="mt-1 text-xs text-slate-500">{item.desc}</p>
+          </div>
+        ))}
+      </section>
       <div className="flex items-center justify-between rounded-2xl bg-white/70 px-4 py-3 shadow-sm">
         <p className="text-sm text-slate-500">
           {pets.length ? `${pets.length} hewan tercatat dalam akun Anda.` : 'Belum ada hewan terdaftar.'}

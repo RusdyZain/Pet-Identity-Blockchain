@@ -1,0 +1,302 @@
+{
+  "defaultProfile": "baseline",
+  "profiles": {
+    "baseline": {
+      "description": "Ramp-up, steady-state, lalu ramp-down untuk campuran read/write/auth.",
+      "scenarios": {
+        "read_heavy": {
+          "executor": "ramping-arrival-rate",
+          "exec": "readHeavyTraffic",
+          "startRate": 5,
+          "timeUnit": "1s",
+          "preAllocatedVUs": 20,
+          "maxVUs": 80,
+          "stages": [
+            { "target": 20, "duration": "2m" },
+            { "target": 20, "duration": "10m" },
+            { "target": 0, "duration": "2m" }
+          ],
+          "tags": { "flow": "read-heavy" }
+        },
+        "write_heavy": {
+          "executor": "ramping-vus",
+          "exec": "writeHeavyBlockchain",
+          "startVUs": 1,
+          "stages": [
+            { "target": 4, "duration": "2m" },
+            { "target": 4, "duration": "8m" },
+            { "target": 0, "duration": "2m" }
+          ],
+          "startTime": "30s",
+          "gracefulRampDown": "30s",
+          "tags": { "flow": "write-heavy" },
+          "walletNeeds": { "OWNER": 1, "CLINIC": 1 }
+        },
+        "auth_burst": {
+          "executor": "constant-arrival-rate",
+          "exec": "authBurst",
+          "rate": 8,
+          "timeUnit": "1s",
+          "duration": "6m",
+          "preAllocatedVUs": 12,
+          "maxVUs": 40,
+          "startTime": "15s",
+          "tags": { "flow": "auth-burst" }
+        },
+        "trace_notification": {
+          "executor": "constant-vus",
+          "exec": "traceNotificationFlow",
+          "vus": 3,
+          "duration": "8m",
+          "startTime": "45s",
+          "tags": { "flow": "trace-notification" }
+        },
+        "correction_transfer": {
+          "executor": "constant-vus",
+          "exec": "correctionTransferFlow",
+          "vus": 1,
+          "duration": "6m",
+          "startTime": "90s",
+          "tags": { "flow": "correction-transfer" },
+          "walletNeeds": { "OWNER": 2, "CLINIC": 1 }
+        }
+      }
+    },
+    "spike": {
+      "description": "Lonjakan traffic mendadak untuk memvalidasi burst handling.",
+      "scenarios": {
+        "read_heavy_spike": {
+          "executor": "ramping-arrival-rate",
+          "exec": "readHeavyTraffic",
+          "startRate": 10,
+          "timeUnit": "1s",
+          "preAllocatedVUs": 40,
+          "maxVUs": 180,
+          "stages": [
+            { "target": 15, "duration": "1m" },
+            { "target": 120, "duration": "30s" },
+            { "target": 15, "duration": "2m" },
+            { "target": 0, "duration": "30s" }
+          ],
+          "tags": { "flow": "read-heavy" }
+        },
+        "auth_burst_spike": {
+          "executor": "ramping-arrival-rate",
+          "exec": "authBurst",
+          "startRate": 10,
+          "timeUnit": "1s",
+          "preAllocatedVUs": 20,
+          "maxVUs": 120,
+          "startTime": "20s",
+          "stages": [
+            { "target": 80, "duration": "20s" },
+            { "target": 10, "duration": "1m" },
+            { "target": 0, "duration": "20s" }
+          ],
+          "tags": { "flow": "auth-burst" }
+        },
+        "write_heavy_spike": {
+          "executor": "constant-vus",
+          "exec": "writeHeavyBlockchain",
+          "vus": 4,
+          "duration": "4m",
+          "startTime": "30s",
+          "tags": { "flow": "write-heavy" },
+          "walletNeeds": { "OWNER": 1, "CLINIC": 1 }
+        },
+        "correction_transfer_spike": {
+          "executor": "constant-vus",
+          "exec": "correctionTransferFlow",
+          "vus": 1,
+          "duration": "4m",
+          "startTime": "1m",
+          "tags": { "flow": "correction-transfer" },
+          "walletNeeds": { "OWNER": 2, "CLINIC": 1 }
+        }
+      }
+    },
+    "stress": {
+      "description": "Naikkan beban sampai mendekati kapasitas limit sistem.",
+      "scenarios": {
+        "read_heavy_stress": {
+          "executor": "ramping-arrival-rate",
+          "exec": "readHeavyTraffic",
+          "startRate": 10,
+          "timeUnit": "1s",
+          "preAllocatedVUs": 60,
+          "maxVUs": 240,
+          "stages": [
+            { "target": 20, "duration": "2m" },
+            { "target": 40, "duration": "3m" },
+            { "target": 80, "duration": "3m" },
+            { "target": 120, "duration": "3m" },
+            { "target": 0, "duration": "2m" }
+          ],
+          "tags": { "flow": "read-heavy" }
+        },
+        "write_heavy_stress": {
+          "executor": "ramping-vus",
+          "exec": "writeHeavyBlockchain",
+          "startVUs": 2,
+          "stages": [
+            { "target": 6, "duration": "2m" },
+            { "target": 12, "duration": "3m" },
+            { "target": 20, "duration": "3m" },
+            { "target": 0, "duration": "2m" }
+          ],
+          "startTime": "45s",
+          "tags": { "flow": "write-heavy" },
+          "walletNeeds": { "OWNER": 1, "CLINIC": 1 }
+        },
+        "auth_burst_stress": {
+          "executor": "constant-arrival-rate",
+          "exec": "authBurst",
+          "rate": 20,
+          "timeUnit": "1s",
+          "duration": "8m",
+          "preAllocatedVUs": 40,
+          "maxVUs": 200,
+          "startTime": "30s",
+          "tags": { "flow": "auth-burst" }
+        },
+        "correction_transfer_stress": {
+          "executor": "constant-vus",
+          "exec": "correctionTransferFlow",
+          "vus": 2,
+          "duration": "8m",
+          "startTime": "2m",
+          "tags": { "flow": "correction-transfer" },
+          "walletNeeds": { "OWNER": 2, "CLINIC": 1 }
+        }
+      }
+    },
+    "soak": {
+      "description": "Uji ketahanan jangka panjang untuk memory leak, queue growth, dan degradasi throughput.",
+      "scenarios": {
+        "read_heavy_soak": {
+          "executor": "constant-arrival-rate",
+          "exec": "readHeavyTraffic",
+          "rate": 15,
+          "timeUnit": "1s",
+          "duration": "2h",
+          "preAllocatedVUs": 40,
+          "maxVUs": 160,
+          "tags": { "flow": "read-heavy" }
+        },
+        "write_heavy_soak": {
+          "executor": "constant-vus",
+          "exec": "writeHeavyBlockchain",
+          "vus": 4,
+          "duration": "2h",
+          "startTime": "1m",
+          "tags": { "flow": "write-heavy" },
+          "walletNeeds": { "OWNER": 1, "CLINIC": 1 }
+        },
+        "auth_burst_soak": {
+          "executor": "constant-arrival-rate",
+          "exec": "authBurst",
+          "rate": 3,
+          "timeUnit": "1s",
+          "duration": "2h",
+          "startTime": "2m",
+          "preAllocatedVUs": 15,
+          "maxVUs": 80,
+          "tags": { "flow": "auth-burst" }
+        },
+        "trace_notification_soak": {
+          "executor": "constant-vus",
+          "exec": "traceNotificationFlow",
+          "vus": 4,
+          "duration": "2h",
+          "startTime": "90s",
+          "tags": { "flow": "trace-notification" }
+        },
+        "correction_transfer_soak": {
+          "executor": "constant-vus",
+          "exec": "correctionTransferFlow",
+          "vus": 1,
+          "duration": "1h",
+          "startTime": "30m",
+          "tags": { "flow": "correction-transfer" },
+          "walletNeeds": { "OWNER": 2, "CLINIC": 1 }
+        }
+      }
+    },
+    "ci": {
+      "description": "Profil singkat untuk pipeline CI (cepat, tetap validasi flow utama).",
+      "scenarios": {
+        "read_heavy_ci": {
+          "executor": "ramping-arrival-rate",
+          "exec": "readHeavyTraffic",
+          "startRate": 2,
+          "timeUnit": "1s",
+          "preAllocatedVUs": 6,
+          "maxVUs": 20,
+          "stages": [
+            { "target": 5, "duration": "30s" },
+            { "target": 5, "duration": "60s" },
+            { "target": 0, "duration": "15s" }
+          ],
+          "tags": { "flow": "read-heavy" }
+        },
+        "write_heavy_ci": {
+          "executor": "ramping-vus",
+          "exec": "writeHeavyBlockchain",
+          "startVUs": 1,
+          "stages": [
+            { "target": 2, "duration": "30s" },
+            { "target": 2, "duration": "60s" },
+            { "target": 0, "duration": "15s" }
+          ],
+          "startTime": "10s",
+          "tags": { "flow": "write-heavy" },
+          "walletNeeds": { "OWNER": 1, "CLINIC": 1 }
+        },
+        "auth_burst_ci": {
+          "executor": "constant-arrival-rate",
+          "exec": "authBurst",
+          "rate": 4,
+          "timeUnit": "1s",
+          "duration": "60s",
+          "preAllocatedVUs": 5,
+          "maxVUs": 15,
+          "startTime": "5s",
+          "tags": { "flow": "auth-burst" }
+        },
+        "trace_notification_ci": {
+          "executor": "constant-vus",
+          "exec": "traceNotificationFlow",
+          "vus": 1,
+          "duration": "60s",
+          "startTime": "15s",
+          "tags": { "flow": "trace-notification" }
+        },
+        "correction_transfer_ci": {
+          "executor": "constant-vus",
+          "exec": "correctionTransferFlow",
+          "vus": 1,
+          "duration": "45s",
+          "startTime": "30s",
+          "tags": { "flow": "correction-transfer" },
+          "walletNeeds": { "OWNER": 2, "CLINIC": 1 }
+        }
+      }
+    }
+  },
+  "thresholds": {
+    "checks": ["rate>0.97"],
+    "http_req_failed": ["rate<0.02"],
+    "http_req_duration": ["p(95)<2500", "p(99)<5000"],
+    "http_req_duration{flow:read-heavy}": ["p(95)<1200"],
+    "http_req_duration{flow:auth-burst}": ["p(95)<1500"],
+    "http_req_duration{flow:write-heavy}": ["p(95)<5000"],
+    "http_reqs": ["rate>5"],
+    "rpc_error_rate": ["rate<0.02"],
+    "tx_submit_ms": ["p(95)<4000"],
+    "tx_confirm_ms": ["p(95)<120000"],
+    "end_to_end_flow_latency": ["p(95)<180000"],
+    "end_to_end_flow_latency{flow:read-heavy}": ["p(95)<5000"],
+    "end_to_end_flow_latency{flow:auth-burst}": ["p(95)<4000"],
+    "flow_success_rate": ["rate>0.95"]
+  }
+}

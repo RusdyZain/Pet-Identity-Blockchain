@@ -12,6 +12,16 @@ export const PublicLayout = () => {
             <p className="mt-2 text-sm text-slate-500">
               Verifikasi identitas, histori vaksin, dan perawatan hewan dengan standar klinik profesional.
             </p>
+            <div className="mt-4 space-y-2 rounded-xl bg-mist/70 p-3 text-xs text-slate-600">
+              <p>
+                <span className="font-semibold text-secondary">Owner:</span> registrasi hewan,
+                koreksi data, transfer kepemilikan.
+              </p>
+              <p>
+                <span className="font-semibold text-secondary">Klinik:</span> tambah catatan medis,
+                verifikasi vaksin, review koreksi.
+              </p>
+            </div>
           </header>
           <Outlet />
         </div>

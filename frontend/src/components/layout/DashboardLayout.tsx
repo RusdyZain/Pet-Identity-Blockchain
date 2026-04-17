@@ -3,6 +3,7 @@ import { useAuth } from '../../context/AuthContext';
 import type { UserRole } from '../../types';
 
 type NavLink = { label: string; to: string; description?: string };
+type RoleCopy = { portalName: string; summary: string };
 
 // Navigasi sidebar berdasarkan role pengguna.
 const navConfig: Record<UserRole, NavLink[]> = {
@@ -17,13 +18,34 @@ const navConfig: Record<UserRole, NavLink[]> = {
     { label: 'Pending Vaksin', to: '/clinic/medical-records/pending', description: 'Verifikasi catatan' },
     { label: 'Koreksi Data', to: '/clinic/corrections', description: 'Review permintaan owner' },
     { label: 'Notifikasi', to: '/clinic/notifications', description: 'Update reguler' },
+    { label: 'Simulasi Chain', to: '/clinic/blockchain-simulator', description: 'Uji proses tx klinik' },
   ],
   ADMIN: [
     { label: 'Dashboard', to: '/admin/dashboard', description: 'Statistik global' },
     { label: 'Kelola Akun', to: '/admin/users', description: 'CRUD akun & role' },
     { label: 'Data Hewan', to: '/admin/pets', description: 'Semua hewan terdaftar' },
+    { label: 'Simulasi Chain', to: '/admin/blockchain-simulator', description: 'Debug flow blockchain' },
   ],
   PUBLIC_VERIFIER: [],
+};
+
+const roleCopy: Record<UserRole, RoleCopy> = {
+  OWNER: {
+    portalName: 'Portal Pemilik',
+    summary: 'Fokus pada registrasi hewan, koreksi data, dan transfer kepemilikan.',
+  },
+  CLINIC: {
+    portalName: 'Portal Klinik',
+    summary: 'Fokus pada catatan medis, verifikasi vaksin, dan review koreksi.',
+  },
+  ADMIN: {
+    portalName: 'Portal Admin',
+    summary: 'Fokus pada governance sistem, role, dan monitoring data global.',
+  },
+  PUBLIC_VERIFIER: {
+    portalName: 'Portal Verifier',
+    summary: 'Fokus pada verifikasi data publik.',
+  },
 };
 
 // Layout utama untuk area dashboard (owner, clinic, admin).
@@ -35,6 +57,7 @@ export const DashboardLayout = () => {
 
   // Ambil daftar menu sesuai role yang sedang login.
   const links = navConfig[user.role] ?? [];
+  const copy = roleCopy[user.role];
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-mist via-white to-slate-100">
@@ -42,14 +65,8 @@ export const DashboardLayout = () => {
         <aside className="w-full rounded-3xl bg-white/80 p-6 shadow-[0_10px_30px_rgba(5,46,31,0.08)] backdrop-blur md:w-72">
           <div className="rounded-2xl bg-gradient-to-br from-primary to-emerald-600 p-5 text-white shadow-lg">
             <p className="text-xs uppercase tracking-[0.4em] text-white/70">Pet Identity</p>
-            <p className="mt-2 text-2xl font-semibold">Klinik Digital</p>
-            <p className="mt-3 text-sm text-white/80">
-              {user.role === 'CLINIC'
-                ? 'Kelola catatan medis dan validasi vaksin pasien Anda.'
-                : user.role === 'OWNER'
-                  ? 'Pantau kesehatan peliharaan dan kelola kepemilikan.'
-                  : 'Monitor statistik jaringan dan insight tren.'}
-            </p>
+            <p className="mt-2 text-2xl font-semibold">{copy.portalName}</p>
+            <p className="mt-3 text-sm text-white/80">{copy.summary}</p>
           </div>
           <nav className="mt-6 space-y-3">
             {links.map((link) => {

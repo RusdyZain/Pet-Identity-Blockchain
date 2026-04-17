@@ -46,6 +46,22 @@ export const ClinicDashboard = () => {
         title="Dashboard Klinik"
         description="Akses cepat terhadap identitas hewan, catatan vaksinasi, dan koreksi data."
       />
+      <section className="grid gap-3 md:grid-cols-4">
+        {[
+          { title: 'Cari Pasien', desc: 'Menemukan hewan berdasarkan nama atau public ID.' },
+          { title: 'Tambah Catatan', desc: 'Mencatat vaksin/rekam medis baru.' },
+          { title: 'Verifikasi Pending', desc: 'Menyetujui atau menolak catatan pending.' },
+          { title: 'Review Koreksi', desc: 'Menilai koreksi data yang diajukan owner.' },
+        ].map((item) => (
+          <div
+            key={item.title}
+            className="rounded-2xl border border-white/60 bg-white/90 p-4 shadow-sm"
+          >
+            <p className="text-sm font-semibold text-secondary">{item.title}</p>
+            <p className="mt-1 text-xs text-slate-500">{item.desc}</p>
+          </div>
+        ))}
+      </section>
       <form
         className="mb-4 flex flex-col gap-3 rounded-2xl border border-white/60 bg-white/90 p-4 shadow-sm md:flex-row"
         onSubmit={handleSearch}

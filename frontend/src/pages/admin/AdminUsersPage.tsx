@@ -24,7 +24,6 @@ const emptyForm = {
   name: '',
   email: '',
   role: 'OWNER' as UserRole,
-  password: '',
   walletAddress: '',
 };
 
@@ -41,6 +40,7 @@ export const AdminUsersPage = () => {
   const [form, setForm] = useState(emptyForm);
 
   const isEditing = form.id !== null;
+  const walletLocked = isEditing && form.walletAddress.trim().length > 0;
 
   const selectClass =
     'mt-1 w-full rounded-2xl border border-slate-200 bg-white/90 px-4 py-2.5 text-sm shadow-inner focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/30 transition';
@@ -89,11 +89,6 @@ export const AdminUsersPage = () => {
       return;
     }
 
-    if (!isEditing && !form.password) {
-      setError('Password wajib diisi untuk akun baru.');
-      return;
-    }
-
     if (!isEditing && !form.walletAddress.trim()) {
       setError('Wallet address wajib diisi untuk akun baru.');
       return;
@@ -106,7 +101,6 @@ export const AdminUsersPage = () => {
           name: form.name.trim(),
           email: form.email.trim(),
           role: form.role,
-          ...(form.password ? { password: form.password } : {}),
           walletAddress: form.walletAddress.trim(),
         });
         setSuccess('Akun berhasil diperbarui.');
@@ -114,7 +108,6 @@ export const AdminUsersPage = () => {
         await adminApi.createUser({
           name: form.name.trim(),
           email: form.email.trim(),
-          password: form.password,
           role: form.role,
           walletAddress: form.walletAddress.trim(),
         });
@@ -135,7 +128,6 @@ export const AdminUsersPage = () => {
       name: target.name,
       email: target.email,
       role: target.role,
-      password: '',
       walletAddress: target.walletAddress ?? '',
     });
     setSuccess('');
@@ -165,7 +157,7 @@ export const AdminUsersPage = () => {
     <div className="space-y-6">
       <PageHeader
         title="Kelola Akun & Peran"
-        description="Admin dapat membuat, memperbarui, dan menghapus akun untuk semua role."
+        description="Admin mengelola role dan metadata akun. Password dinonaktifkan karena autentikasi berbasis wallet."
       />
 
       <section className="rounded-3xl border border-white/60 bg-white/90 p-6 shadow-lg shadow-primary/5">
@@ -192,18 +184,15 @@ export const AdminUsersPage = () => {
             </select>
           </label>
           <TextField
-            label={isEditing ? 'Password Baru (opsional)' : 'Password'}
-            type="password"
-            value={form.password}
-            onChange={handleFormChange('password')}
-            required={!isEditing}
-          />
-          <TextField
-            label={isEditing ? 'Wallet Address (opsional)' : 'Wallet Address'}
+            label={isEditing ? 'Wallet Address' : 'Wallet Address'}
             value={form.walletAddress}
             onChange={handleFormChange('walletAddress')}
+            disabled={walletLocked}
             required={!isEditing}
           />
+          <p className="rounded-2xl bg-mist/70 px-4 py-3 text-xs text-slate-500">
+            Catatan: akun wallet-based tidak mendukung ubah password dan wallet tidak dapat diubah/hapus oleh admin.
+          </p>
           {error && <p className="text-sm text-red-600">{error}</p>}
           {success && <p className="text-sm text-green-600">{success}</p>}
           <div className="flex flex-wrap gap-3">
@@ -302,10 +291,11 @@ export const AdminUsersPage = () => {
                         </button>
                         <button
                           type="button"
-                          className="rounded-full border border-red-200 px-3 py-1 text-xs text-red-600"
+                          className="rounded-full border border-red-200 px-3 py-1 text-xs text-red-600 disabled:cursor-not-allowed disabled:border-slate-200 disabled:text-slate-400"
                           onClick={() => handleDelete(item)}
+                          disabled={Boolean(item.walletAddress)}
                         >
-                          Hapus
+                          {item.walletAddress ? 'Tidak bisa dihapus' : 'Hapus'}
                         </button>
                       </div>
                     </td>

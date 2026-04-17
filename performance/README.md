@@ -1,34 +1,36 @@
-# Load Test (Locust)
+# Performance Test Suite
 
-## Setup
+Folder `performance/` punya 2 pendekatan:
 
-1. Install dependencies:
-   - `pip install -r performance/requirements.txt`
-2. Set env vars:
-   - `API_URL`
-   - `RPC_URL`
-   - `CHAIN_ID` (optional, auto-detected if omitted)
-   - `OWNER_PRIVATE_KEYS` (comma-separated private keys)
-   - `CLINIC_PRIVATE_KEYS` (comma-separated private keys)
-3. Ensure all wallets are registered on the target chain and have test ETH for gas.
+1. **K6 Grafana Cloud-first (utama)** -> `performance/k6/`
+2. **Locust (legacy, referensi lama)** -> `performance/locustfile.py`
 
-## Run all scenarios
+## Untuk Pemula (Mulai dari Sini)
 
-- `powershell -ExecutionPolicy Bypass -File performance/run_scenarios.ps1`
+1. Buka panduan utama K6: `performance/k6/README.md`.
+2. Copy env template:
 
-Scenarios:
-- `10` concurrent users
-- `50` concurrent users
-- `100` concurrent users
+```powershell
+Copy-Item performance/k6/.env.example performance/k6/.env
+```
 
-Duration per scenario: `5 minutes`.
+3. Isi `performance/k6/.env`:
+   - `SIGNER_MODE=local_private_key` + `OWNER_PRIVATE_KEYS/CLINIC_PRIVATE_KEYS` untuk Sepolia/public RPC.
+   - atau `SIGNER_MODE=rpc_unlocked` + wallet address untuk Ganache/Anvil unlocked.
+4. Jalankan:
 
-## Metrics to collect
+```powershell
+# endpoint localhost/private
+powershell -ExecutionPolicy Bypass -File performance/k6/run_cloud.ps1 -Profile ci -LocalExecution -EnvFile performance/k6/.env
+```
 
-From Locust CSV output in `performance/reports`:
-- `*_stats.csv`:
-  - Throughput/TPS: requests per second (`Requests/s`)
-  - Latency: `Median`, `95%`, `99%` response time
-  - Error rate: `# Fails / # Requests`
-- `*_failures.csv`: failure breakdown by endpoint/error
-- `*_stats_history.csv`: time-series trend for TPS and latency
+```powershell
+# endpoint public
+powershell -ExecutionPolicy Bypass -File performance/k6/run_cloud.ps1 -Profile baseline -EnvFile performance/k6/.env
+```
+
+## Legacy Locust
+
+Implementasi lama tetap disimpan untuk referensi historis:
+- `performance/locustfile.py`
+- `performance/run_scenarios.ps1`

@@ -73,7 +73,7 @@ export const ownerAccountApi = {
     const { data } = await api.get<OwnerProfile>('/owners/me');
     return data;
   },
-  update: async (payload: { name?: string; email?: string; password?: string }) => {
+  update: async (payload: { name?: string; email?: string }) => {
     const { data } = await api.patch<OwnerProfile>('/owners/me', payload);
     return data;
   },
@@ -273,7 +273,6 @@ export const adminApi = {
   createUser: async (payload: {
     name: string;
     email: string;
-    password: string;
     role: string;
     walletAddress?: string;
   }) => {
@@ -285,7 +284,6 @@ export const adminApi = {
     payload: {
       name?: string;
       email?: string;
-      password?: string;
       role?: string;
       walletAddress?: string;
     },

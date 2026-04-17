@@ -21,7 +21,10 @@ export const ClinicPetDetail = () => {
       setLoading(true);
       setError('');
       try {
-        const [petData, recordData] = await Promise.all([petApi.detail(id), medicalRecordApi.list(id)]);
+        const [petData, recordData] = await Promise.all([
+          petApi.detail(id),
+          medicalRecordApi.list(id),
+        ]);
         setPet(petData);
         setRecords(recordData);
       } catch (err: any) {
@@ -39,7 +42,10 @@ export const ClinicPetDetail = () => {
 
   return (
     <div className="space-y-4">
-      <PageHeader title={`Detail Hewan - ${pet.name}`} />
+      <PageHeader
+        title={`Detail Hewan - ${pet.name}`}
+        description="Halaman klinik untuk meninjau riwayat medis dan menambah catatan vaksin."
+      />
       <div className="flex justify-end">
         <button
           className="rounded-full bg-primary px-5 py-2 text-sm font-semibold text-white shadow-primary/30"
@@ -52,7 +58,7 @@ export const ClinicPetDetail = () => {
         <div className="rounded-3xl border border-white/50 bg-white/90 p-5 shadow-sm">
           <h3 className="font-semibold text-secondary mb-2">Identitas</h3>
           <p className="text-sm text-slate-600">
-            {pet.species} • {pet.breed}
+            {pet.species} {'\u2022'} {pet.breed}
           </p>
           <p className="text-sm text-slate-600">Public ID: {pet.publicId}</p>
         </div>

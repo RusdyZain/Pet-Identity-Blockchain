@@ -21,7 +21,7 @@ export const getOwnerProfileController = async (
   }
 };
 
-// Handler update data akun owner.
+// Handler update data akun owner (nama & email).
 export const updateOwnerProfileController = async (
   req: Request,
   res: Response,
@@ -29,12 +29,11 @@ export const updateOwnerProfileController = async (
 ) => {
   try {
     if (!req.user) throw new AppError("Unauthorized", 401);
-    const { name, email, password } = req.body;
+    const { name, email } = req.body;
     const owner = await updateOwnerProfile({
       userId: req.user.id,
       name,
       email,
-      password,
     });
     res.json(owner);
   } catch (error) {

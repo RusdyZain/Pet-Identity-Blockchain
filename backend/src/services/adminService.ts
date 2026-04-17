@@ -7,6 +7,7 @@ import { OwnershipHistory } from "../entities/OwnershipHistory";
 import { Notification } from "../entities/Notification";
 import { UserRole } from "../types/enums";
 import { AppError } from "../utils/errors";
+import { randomBytes } from "crypto";
 import { hashPassword } from "../utils/password";
 import { getAddress } from "ethers";
 
@@ -39,14 +40,13 @@ export const listUsers = async (params?: {
 export const createUser = async (params: {
   name: string;
   email: string;
-  password: string;
   role: UserRole;
   walletAddress?: string;
 }) => {
   const name = params.name.trim();
   const email = params.email.trim().toLowerCase();
 
-  if (!name || !email || !params.password) {
+  if (!name || !email) {
     throw new AppError("Missing required fields", 400);
   }
 
@@ -79,7 +79,8 @@ export const createUser = async (params: {
     }
   }
 
-  const passwordHash = await hashPassword(params.password);
+  // Login aplikasi berbasis wallet challenge/signature; password disimpan sebagai placeholder acak.
+  const passwordHash = await hashPassword(randomBytes(24).toString("hex"));
   const user = await repo.save(
     repo.create({
       name,
@@ -104,7 +105,6 @@ export const updateUser = async (
   params: {
     name?: string;
     email?: string;
-    password?: string;
     role?: UserRole;
     walletAddress?: string;
   }
@@ -112,7 +112,7 @@ export const updateUser = async (
   const repo = AppDataSource.getRepository(User);
   const existing = await repo.findOne({
     where: { id: userId },
-    select: ["id", "email"],
+    select: ["id", "email", "walletAddress"],
   });
 
   if (!existing) {
@@ -148,6 +148,14 @@ export const updateUser = async (
 
   if (typeof params.walletAddress === "string") {
     const walletAddress = params.walletAddress.trim();
+
+    if (existing.walletAddress) {
+      throw new AppError(
+        "Wallet address akun blockchain tidak dapat diubah oleh admin",
+        400
+      );
+    }
+
     if (!walletAddress) {
       data.walletAddress = null;
     } else {
@@ -172,12 +180,6 @@ export const updateUser = async (
     }
   }
 
-  if (typeof params.password === "string") {
-    const password = params.password.trim();
-    if (!password) throw new AppError("Password tidak boleh kosong", 400);
-    data.passwordHash = await hashPassword(password);
-  }
-
   if (Object.keys(data).length === 0) {
     throw new AppError("Tidak ada data yang diperbarui", 400);
   }
@@ -198,8 +200,18 @@ export const updateUser = async (
 
 export const deleteUser = async (userId: number) => {
   const repo = AppDataSource.getRepository(User);
-  const user = await repo.findOne({ where: { id: userId }, select: ["id"] });
+  const user = await repo.findOne({
+    where: { id: userId },
+    select: ["id", "walletAddress"],
+  });
   if (!user) throw new AppError("User not found", 404);
+
+  if (user.walletAddress) {
+    throw new AppError(
+      "Akun terdaftar via wallet blockchain tidak dapat dihapus oleh admin",
+      400
+    );
+  }
 
   const petRepo = AppDataSource.getRepository(Pet);
   const medicalRepo = AppDataSource.getRepository(MedicalRecord);

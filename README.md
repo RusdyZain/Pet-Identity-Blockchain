@@ -240,6 +240,20 @@ Pola write endpoint penting:
 - `GET|POST|PATCH|DELETE /admin/users`
 - `GET /admin/pets`
 
+Kebijakan akun wallet-based:
+1. Login tetap via challenge + signature wallet (tanpa password form).
+2. Admin tidak dapat mengubah password akun.
+3. Admin tidak dapat menghapus akun yang sudah terikat `walletAddress` blockchain.
+
+### 8.6 Pemisahan Halaman Frontend per Role
+1. OWNER (`/owner/*`)
+   - Dashboard owner, registrasi hewan, detail hewan, riwayat medis, ajukan koreksi, transfer kepemilikan, notifikasi owner, akun owner.
+2. CLINIC (`/clinic/*`)
+   - Dashboard klinik, detail pasien, tambah catatan medis, verifikasi pending, review koreksi, notifikasi klinik.
+3. ADMIN (`/admin/*`)
+   - Dashboard admin, manajemen akun/role, daftar semua hewan.
+4. Setiap route dibatasi `ProtectedRoute` berdasarkan role sehingga owner dan klinik memiliki halaman + fungsi yang berbeda.
+
 ## 9. Persiapan Lingkungan
 1. Node.js 20+ (disarankan 24 sesuai pengembangan repo).
 2. PostgreSQL aktif.
@@ -261,7 +275,7 @@ ADMIN_SEED_ENABLED=true
 ADMIN_NAME=Super Admin
 ADMIN_EMAIL=admin@example.com
 ADMIN_WALLET_ADDRESS=0xYourAdminWalletAddress
-# Optional: hanya untuk CRUD admin, bukan login
+# Optional: hanya hash internal bootstrap; login tetap via wallet
 ADMIN_PASSWORD=isi_jika_perlu
 ```
 
@@ -452,16 +466,25 @@ Biasanya cukup 3 terminal: node blockchain, backend, frontend.
 5. Saat transaksi muncul di MetaMask, klik confirm.
 6. Sistem menyimpan data pet + bukti transaksi on-chain.
 
-## 15. Pengujian Performa (Locust)
-Folder: `performance/`
-- `locustfile.py`
-- `run_scenarios.ps1`
-- skenario 10, 50, 100 user
+## 15. Pengujian Performa (K6 + Grafana Cloud)
+Folder utama: `performance/k6/`
 
-Ringkas:
+Panduan detail untuk pemula ada di:
+- `performance/k6/README.md`
+
+Ringkas (copy-paste friendly):
 ```powershell
-pip install -r performance/requirements.txt
-powershell -ExecutionPolicy Bypass -File performance/run_scenarios.ps1
+# dari root project
+Copy-Item performance/k6/.env.example performance/k6/.env
+# edit performance/k6/.env: isi token, API/RPC, lalu pilih signer mode
+# - Sepolia/public RPC: SIGNER_MODE=local_private_key + OWNER_PRIVATE_KEYS/CLINIC_PRIVATE_KEYS
+# - Ganache unlocked: SIGNER_MODE=rpc_unlocked + OWNER_WALLET_ADDRESSES/CLINIC_WALLET_ADDRESSES
+
+# jika API/RPC masih localhost/private
+powershell -ExecutionPolicy Bypass -File performance/k6/run_cloud.ps1 -Profile ci -LocalExecution -EnvFile performance/k6/.env
+
+# jika API/RPC public reachable
+powershell -ExecutionPolicy Bypass -File performance/k6/run_cloud.ps1 -Profile baseline -EnvFile performance/k6/.env
 ```
 
 ## 16. Troubleshooting Umum
@@ -689,7 +712,7 @@ Analisis hasil:
 3. Validasi error handling (misal `txHash` wajib, role-based access, signature mismatch) juga memastikan sistem menolak kondisi tidak valid secara konsisten.
 
 #### 4.3.3 Pengujian Kinerja
-Pengujian kinerja menggunakan Locust pada skenario 10, 50, dan 100 user konkuren (durasi 5 menit per skenario).
+Pengujian kinerja menggunakan K6 (Grafana Cloud-first) dengan profil `ci`, `baseline`, `spike`, `stress`, dan `soak` dari `performance/k6/scenarios.json`.
 
 Interpretasi hasil kinerja:
 1. Response time endpoint murni REST (tanpa transaksi on-chain) cenderung lebih rendah dan stabil.
