@@ -3,12 +3,14 @@ import { ENV } from "./config/env";
 import { AppDataSource } from "./config/dataSource";
 import { ensureSchema } from "./config/ensureSchema";
 import { seedAdminFromEnv } from "./config/seedAdmin";
+import { startVaccineReminderScheduler } from "./services/vaccineReminderScheduler";
 
 // Mulai server setelah koneksi database siap.
 const start = async () => {
   await AppDataSource.initialize();
   await ensureSchema();
   await seedAdminFromEnv();
+  startVaccineReminderScheduler();
   app.listen(ENV.port, () => {
     console.log(`Server running on port ${ENV.port}`);
   });

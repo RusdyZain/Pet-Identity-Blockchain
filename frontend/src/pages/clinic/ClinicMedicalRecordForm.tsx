@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import type { ChangeEvent, FormEvent } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { medicalRecordApi } from '../../services/apiClient';
+import { medicalRecordApi, uploadApi } from '../../services/apiClient';
 import { TextField } from '../../components/forms/TextField';
 import { PageHeader } from '../../components/common/PageHeader';
 import { sendPreparedTransaction } from '../../services/walletClient';
@@ -20,6 +20,7 @@ export const ClinicMedicalRecordForm = () => {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
+  const [evidenceFile, setEvidenceFile] = useState<File | null>(null);
 
   // Helper untuk update field form.
   const handleChange =
@@ -36,10 +37,21 @@ export const ClinicMedicalRecordForm = () => {
     setSuccess('');
     setLoading(true);
     try {
-      const prepared = await medicalRecordApi.prepareCreate(id, form);
+      let evidenceUrl = form.evidence_url.trim();
+      if (evidenceFile) {
+        const uploaded = await uploadApi.uploadEvidence(evidenceFile);
+        evidenceUrl = uploaded.url;
+      }
+
+      const payload = {
+        ...form,
+        evidence_url: evidenceUrl,
+      };
+
+      const prepared = await medicalRecordApi.prepareCreate(id, payload);
       const { txHash } = await sendPreparedTransaction(prepared.txRequest);
       await medicalRecordApi.create(id, {
-        ...form,
+        ...payload,
         txHash,
       });
       setSuccess(`Catatan medis berhasil dibuat. txHash: ${txHash}`);
@@ -88,6 +100,30 @@ export const ClinicMedicalRecordForm = () => {
           onChange={handleChange('evidence_url')}
           placeholder="https://"
         />
+        <div className="space-y-2">
+          <label className="text-sm font-semibold text-secondary">
+            Upload Bukti (JPG/PNG/WEBP/PDF, opsional)
+          </label>
+          <input
+            type="file"
+            accept="image/jpeg,image/png,image/webp,application/pdf"
+            onChange={(event) => {
+              const file = event.target.files?.[0] ?? null;
+              setEvidenceFile(file);
+            }}
+            className="block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
+          />
+          {evidenceFile && (
+            <p className="text-xs text-slate-500">
+              File terpilih: {evidenceFile.name} ({Math.ceil(evidenceFile.size / 1024)} KB)
+            </p>
+          )}
+          {form.evidence_url && (
+            <p className="text-xs text-slate-500 break-all">
+              Bukti aktif: {form.evidence_url}
+            </p>
+          )}
+        </div>
         {error && <p className="text-sm text-red-600">{error}</p>}
         {success && <p className="text-sm text-green-600">{success}</p>}
         <div className="flex gap-3">

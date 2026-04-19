@@ -2,20 +2,15 @@ import { randomBytes } from "crypto";
 import { getAddress, verifyMessage } from "ethers";
 import { UserRole } from "../types/enums";
 import { AppDataSource } from "../config/dataSource";
+import { ENV } from "../config/env";
 import { User } from "../entities/User";
 import { AppError } from "../utils/errors";
 import { hashPassword } from "../utils/password";
 import { signJwt } from "../utils/jwt";
+import { getWalletChallengeStore } from "./walletChallengeStore";
 
 const SELF_REGISTER_ROLES: UserRole[] = [UserRole.OWNER, UserRole.CLINIC];
-const WALLET_CHALLENGE_TTL_MS = 5 * 60 * 1000;
-
-type WalletChallenge = {
-  message: string;
-  expiresAt: number;
-};
-
-const walletChallengeStore = new Map<string, WalletChallenge>();
+const WALLET_CHALLENGE_TTL_MS = ENV.walletChallengeTtlMs;
 
 const normalizeWalletAddress = (walletAddress: string): string => {
   const candidate = walletAddress?.trim();
@@ -29,13 +24,9 @@ const normalizeWalletAddress = (walletAddress: string): string => {
   }
 };
 
-const cleanupExpiredChallenges = () => {
-  const now = Date.now();
-  for (const [key, challenge] of walletChallengeStore.entries()) {
-    if (challenge.expiresAt <= now) {
-      walletChallengeStore.delete(key);
-    }
-  }
+const cleanupExpiredChallenges = async () => {
+  const challengeStore = await getWalletChallengeStore();
+  await challengeStore.cleanupExpired();
 };
 
 const findUserByWalletAddress = async (walletAddress: string) => {
@@ -48,24 +39,30 @@ const findUserByWalletAddress = async (walletAddress: string) => {
     .getOne();
 };
 
-const consumeAndValidateChallenge = (walletAddress: string, message: string) => {
-  cleanupExpiredChallenges();
-  const key = walletAddress.toLowerCase();
-  const challenge = walletChallengeStore.get(key);
-  if (!challenge) {
-    throw new AppError("Wallet challenge not found or already used", 400);
+const consumeAndValidateChallenge = async (
+  walletAddress: string,
+  message: string
+) => {
+  const challengeStore = await getWalletChallengeStore();
+  const consumeStatus = await challengeStore.consumeChallenge({
+    walletAddress,
+    message,
+  });
+
+  if (consumeStatus === "consumed") {
+    return;
   }
-  if (challenge.expiresAt <= Date.now()) {
-    walletChallengeStore.delete(key);
+  if (consumeStatus === "expired") {
     throw new AppError("Wallet challenge expired", 400);
   }
-  if (challenge.message !== message) {
+  if (consumeStatus === "mismatch") {
     throw new AppError("Wallet challenge mismatch", 400);
   }
-  walletChallengeStore.delete(key);
+
+  throw new AppError("Wallet challenge not found or already used", 400);
 };
 
-const verifyWalletSignature = (params: {
+const verifyWalletSignature = async (params: {
   walletAddress: string;
   message: string;
   signature: string;
@@ -78,7 +75,7 @@ const verifyWalletSignature = (params: {
     throw new AppError("Missing wallet authentication payload", 400);
   }
 
-  consumeAndValidateChallenge(walletAddress, message);
+  await consumeAndValidateChallenge(walletAddress, message);
 
   let recoveredAddress: string;
   try {
@@ -94,8 +91,8 @@ const verifyWalletSignature = (params: {
   return walletAddress;
 };
 
-export const createWalletChallenge = (walletAddress: string) => {
-  cleanupExpiredChallenges();
+export const createWalletChallenge = async (walletAddress: string) => {
+  await cleanupExpiredChallenges();
   const normalizedAddress = normalizeWalletAddress(walletAddress);
   const nonce = randomBytes(16).toString("hex");
   const issuedAt = new Date();
@@ -109,9 +106,11 @@ export const createWalletChallenge = (walletAddress: string) => {
     `Expires At: ${expiresAt.toISOString()}`,
   ].join("\n");
 
-  walletChallengeStore.set(normalizedAddress.toLowerCase(), {
+  const challengeStore = await getWalletChallengeStore();
+  await challengeStore.saveChallenge({
+    walletAddress: normalizedAddress.toLowerCase(),
     message,
-    expiresAt: expiresAt.getTime(),
+    expiresAt,
   });
 
   return {
@@ -143,7 +142,7 @@ export const registerUser = async (params: {
     throw new AppError("Email is required", 400);
   }
 
-  const verifiedWalletAddress = verifyWalletSignature({
+  const verifiedWalletAddress = await verifyWalletSignature({
     walletAddress: params.walletAddress,
     message: params.message,
     signature: params.signature,
@@ -187,7 +186,7 @@ export const loginUser = async (params: {
   message: string;
   signature: string;
 }) => {
-  const verifiedWalletAddress = verifyWalletSignature({
+  const verifiedWalletAddress = await verifyWalletSignature({
     walletAddress: params.walletAddress,
     message: params.message,
     signature: params.signature,

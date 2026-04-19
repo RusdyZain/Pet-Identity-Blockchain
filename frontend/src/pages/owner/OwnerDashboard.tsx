@@ -112,6 +112,18 @@ export const OwnerDashboard = () => {
                   >
                     Transfer
                   </button>
+                  <button
+                    onClick={() =>
+                      window.open(
+                        `/trace?publicId=${encodeURIComponent(pet.publicId)}`,
+                        '_blank',
+                        'noopener,noreferrer',
+                      )
+                    }
+                    className="text-sm font-semibold text-primary hover:underline"
+                  >
+                    Trace QR
+                  </button>
                 </div>
               ),
             },

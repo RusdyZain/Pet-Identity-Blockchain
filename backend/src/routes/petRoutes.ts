@@ -4,6 +4,7 @@ import {
   acceptTransferController,
   createCorrectionController,
   createPetController,
+  prepareTransferController,
   preparePetRegistrationController,
   getPetController,
   initiateTransferController,
@@ -48,6 +49,20 @@ router.get(
   authenticate(),
   authorize([UserRole.OWNER, UserRole.CLINIC, UserRole.ADMIN]),
   ownershipHistoryController
+);
+
+router.post(
+  "/:petId/transfer/prepare",
+  authenticate(),
+  authorize([UserRole.OWNER]),
+  prepareTransferController
+);
+
+router.post(
+  "/:petId/prepare-transfer-ownership",
+  authenticate(),
+  authorize([UserRole.OWNER]),
+  prepareTransferController
 );
 
 router.post(

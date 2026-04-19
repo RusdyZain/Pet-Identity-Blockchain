@@ -17,7 +17,7 @@ export const walletChallenge = async (
     if (!walletAddress) {
       throw new AppError("walletAddress is required", 400);
     }
-    const challenge = createWalletChallenge(walletAddress);
+    const challenge = await createWalletChallenge(walletAddress);
     res.json(challenge);
   } catch (error) {
     next(error);

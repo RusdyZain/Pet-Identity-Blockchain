@@ -116,9 +116,37 @@ model OwnershipHistory {
   fromOwner     User      @relation("FromOwner", fields: [fromOwnerId], references: [id])
   toOwnerId     Int       @map("to_owner_id")
   toOwner       User      @relation("ToOwner", fields: [toOwnerId], references: [id])
+  onChainPetId  Int?      @map("on_chain_pet_id")
+  txHash        String?   @map("tx_hash")
+  blockNumber   Int?      @map("block_number")
+  blockTimestamp DateTime? @map("block_timestamp")
+  createdAt     DateTime  @default(now()) @map("created_at")
   transferredAt DateTime? @map("transferred_at")
 
   @@map("ownership_history")
+}
+
+model WalletChallenge {
+  walletAddress String   @id @map("wallet_address")
+  message       String
+  expiresAt     DateTime @map("expires_at")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  @@index([expiresAt], map: "wallet_challenges_expires_at_idx")
+  @@map("wallet_challenges")
+}
+
+model VaccineReminderLog {
+  id       Int      @id @default(autoincrement())
+  petId    Int      @map("pet_id")
+  ownerId  Int      @map("owner_id")
+  vaccineType String @map("vaccine_type")
+  dueDate  DateTime @db.Date @map("due_date")
+  sentAt   DateTime @default(now()) @map("sent_at")
+
+  @@unique([petId, vaccineType, dueDate], map: "vaccine_reminder_logs_pet_id_vaccine_type_due_date_key")
+  @@map("vaccine_reminder_logs")
 }
 
 model CorrectionRequest {

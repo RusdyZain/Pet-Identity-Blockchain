@@ -6,7 +6,7 @@ import type {
   CorrectionRequest,
   MedicalRecord,
   Notification,
-  OwnershipHistory,
+  OwnershipHistoryDashboardResponse,
   OwnerProfile,
   Pet,
   PreparedTxRequest,
@@ -122,17 +122,46 @@ export const petApi = {
     return data;
   },
   ownershipHistory: async (petId: string) => {
-    const { data } = await api.get<OwnershipHistory[]>(`/pets/${petId}/ownership-history`);
+    const { data } = await api.get<OwnershipHistoryDashboardResponse>(`/pets/${petId}/ownership-history`);
     return data;
   },
-  initiateTransfer: async (petId: string, newOwnerEmail: string) => {
-    const { data } = await api.post(`/pets/${petId}/transfer`, {
+  prepareTransfer: async (petId: string, newOwnerEmail: string) => {
+    const { data } = await api.post(`/pets/${petId}/prepare-transfer-ownership`, {
       new_owner_email: newOwnerEmail,
+    });
+    return data as {
+      onChainPetId: number;
+      newOwnerWalletAddress: string;
+      txRequest: PreparedTxRequest;
+    };
+  },
+  initiateTransfer: async (petId: string, payload: { newOwnerEmail: string; txHash: string }) => {
+    const { data } = await api.post(`/pets/${petId}/transfer`, {
+      new_owner_email: payload.newOwnerEmail,
+      txHash: payload.txHash,
     });
     return data;
   },
   acceptTransfer: async (petId: string) => {
     const { data } = await api.post(`/pets/${petId}/transfer/accept`, {});
+    return data;
+  },
+};
+
+export const uploadApi = {
+  uploadEvidence: async (file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const { data } = await api.post<{
+      storage: 'local' | 'ipfs';
+      url: string;
+      cid?: string;
+    }>('/uploads/evidence', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
     return data;
   },
 };

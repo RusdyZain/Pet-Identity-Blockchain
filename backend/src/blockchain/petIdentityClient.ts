@@ -193,6 +193,15 @@ export const prepareVerifyMedicalRecordTx = (
 export const prepareUpdatePetBasicDataTx = (petId: number, dataHash: string) =>
   encodeTxData("updatePetBasicData", [petId, dataHash]);
 
+export const prepareTransferOwnershipTx = (
+  petId: number,
+  newOwnerWalletAddress: string
+) =>
+  encodeTxData("transferOwnership", [
+    petId,
+    normalizeWalletAddress(newOwnerWalletAddress),
+  ]);
+
 export const confirmRegisterPetTx = async (params: {
   txHash: string;
   expectedDataHash: string;
@@ -322,6 +331,48 @@ export const confirmUpdatePetBasicDataTx = async (params: {
   }
   if (actor.toLowerCase() !== expectedWallet.toLowerCase()) {
     throw new AppError("Event actor mismatch with authenticated wallet", 403);
+  }
+
+  return {
+    metadata,
+  };
+};
+
+export const confirmTransferOwnershipTx = async (params: {
+  txHash: string;
+  expectedPetId: number;
+  expectedFromWalletAddress: string;
+  expectedToWalletAddress: string;
+}) => {
+  const [metadata, event] = await Promise.all([
+    buildTxMetadata(params.txHash),
+    parseEventFromReceipt(params.txHash, "OwnershipTransferred"),
+  ]);
+  assertTxSender(metadata.from, params.expectedFromWalletAddress);
+
+  const petId = toNumber(event.args?.petId ?? event.args?.[0], "petId");
+  const actor = decodeAddressArg(
+    event.args?.verifiedBy ?? event.args?.actor ?? event.args?.[3]
+  );
+  const oldOwner = decodeAddressArg(event.args?.oldOwner ?? event.args?.[5]);
+  const newOwner = decodeAddressArg(event.args?.newOwner ?? event.args?.[6]);
+
+  const expectedFromWallet = normalizeWalletAddress(
+    params.expectedFromWalletAddress
+  );
+  const expectedToWallet = normalizeWalletAddress(params.expectedToWalletAddress);
+
+  if (petId !== params.expectedPetId) {
+    throw new AppError("petId mismatch with on-chain event", 400);
+  }
+  if (actor.toLowerCase() !== expectedFromWallet.toLowerCase()) {
+    throw new AppError("Event actor mismatch with authenticated wallet", 403);
+  }
+  if (oldOwner.toLowerCase() !== expectedFromWallet.toLowerCase()) {
+    throw new AppError("oldOwner mismatch with requested transfer", 400);
+  }
+  if (newOwner.toLowerCase() !== expectedToWallet.toLowerCase()) {
+    throw new AppError("newOwner mismatch with requested transfer", 400);
   }
 
   return {

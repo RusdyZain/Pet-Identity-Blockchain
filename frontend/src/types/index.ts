@@ -87,12 +87,26 @@ export interface CorrectionRequest {
   reason?: string | null;
 }
 
-// Riwayat perpindahan kepemilikan hewan.
-export interface OwnershipHistory {
+// Item riwayat perpindahan kepemilikan untuk dashboard internal.
+export interface OwnershipHistoryItem {
   id: number;
-  fromOwner: { name: string };
-  toOwner: { name: string };
+  petId: number;
+  onChainPetId?: number | null;
+  fromOwner: { id: number | null; name: string; email: string };
+  toOwner: { id: number | null; name: string; email: string };
+  requestedAt: string;
+  status: 'PENDING' | 'COMPLETED';
+  txHash?: string | null;
+  blockNumber?: number | null;
+  blockTimestamp?: string | null;
   transferredAt: string | null;
+}
+
+export interface OwnershipHistoryDashboardResponse {
+  view: 'dashboard_internal';
+  petId: number;
+  total: number;
+  items: OwnershipHistoryItem[];
 }
 
 // Notifikasi yang dikirim sistem kepada user.
@@ -106,11 +120,23 @@ export interface Notification {
 
 // Data trace publik untuk verifikasi identitas hewan.
 export interface TraceResult {
+  publicId: string;
   name: string;
   species: string;
   breed: string;
   ownerName: string;
   vaccines: Array<{ vaccineType: string; lastGivenAt: string; status: string }>;
+  ownershipHistory: {
+    view: 'trace_public';
+    total: number;
+    items: Array<{
+      fromOwner: { name: string; wallet: string | null };
+      toOwner: { name: string; wallet: string | null };
+      requestedAt: string;
+      transferredAt: string | null;
+      status: 'PENDING' | 'COMPLETED';
+    }>;
+  };
 }
 
 export interface PreparedTxRequest {

@@ -1,9 +1,11 @@
-﻿import { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
+import QRCode from 'qrcode';
 import { useParams } from 'react-router-dom';
 import { petApi, medicalRecordApi } from '../../services/apiClient';
 import type { MedicalRecord, Pet } from '../../types';
 import { Loader } from '../../components/common/Loader';
 import { PageHeader } from '../../components/common/PageHeader';
+import { buildTraceUrl } from '../../utils/traceQr';
 
 // Detail hewan untuk pemilik beserta ringkasan vaksin terbaru.
 export const OwnerPetDetail = () => {
@@ -12,6 +14,7 @@ export const OwnerPetDetail = () => {
   const [records, setRecords] = useState<MedicalRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [qrImageUrl, setQrImageUrl] = useState('');
 
   // Ambil detail hewan dan beberapa catatan medis terbaru.
   useEffect(() => {
@@ -34,6 +37,21 @@ export const OwnerPetDetail = () => {
     };
     fetchData();
   }, [id]);
+
+  useEffect(() => {
+    if (!pet?.publicId) {
+      setQrImageUrl('');
+      return;
+    }
+
+    const traceUrl = buildTraceUrl(window.location.origin, pet.publicId);
+    void QRCode.toDataURL(traceUrl, {
+      width: 220,
+      margin: 2,
+    })
+      .then((url) => setQrImageUrl(url))
+      .catch(() => setQrImageUrl(''));
+  }, [pet?.publicId]);
 
   if (loading) return <Loader label="Memuat detail hewan..." />;
   if (error) return <p className="text-sm text-red-600">{error}</p>;
@@ -65,7 +83,7 @@ export const OwnerPetDetail = () => {
             <div>
               <dt className="text-slate-500">Warna & Ciri Fisik</dt>
               <dd className="font-semibold">
-                {pet.color} • {pet.physicalMark}
+                {pet.color} - {pet.physicalMark}
               </dd>
             </div>
           </dl>
@@ -80,7 +98,7 @@ export const OwnerPetDetail = () => {
                 <li key={record.id} className="border rounded p-3">
                   <p className="font-semibold">{record.vaccineType}</p>
                   <p className="text-slate-500">
-                    {new Date(record.givenAt).toLocaleDateString()} • Status{' '}
+                    {new Date(record.givenAt).toLocaleDateString()} - Status{' '}
                     <span className="uppercase">{record.status}</span>
                   </p>
                 </li>
@@ -89,7 +107,26 @@ export const OwnerPetDetail = () => {
           )}
         </div>
       </div>
+      <div className="rounded-3xl border border-white/50 bg-white/90 p-5 shadow-sm max-w-sm">
+        <h3 className="text-lg font-semibold text-secondary mb-3">QR Trace Publik</h3>
+        {qrImageUrl ? (
+          <div className="space-y-2">
+            <img src={qrImageUrl} alt={`QR ${pet.publicId}`} className="w-full rounded-xl border" />
+            <a
+              href={qrImageUrl}
+              download={`trace-${pet.publicId}.png`}
+              className="inline-flex rounded-full border border-primary px-3 py-1 text-xs font-semibold text-primary"
+            >
+              Unduh QR
+            </a>
+          </div>
+        ) : (
+          <p className="text-sm text-slate-500">QR belum tersedia.</p>
+        )}
+        <p className="mt-3 text-xs text-slate-500">
+          Scan untuk membuka trace publik: /trace?publicId={pet.publicId}
+        </p>
+      </div>
     </div>
   );
 };
-

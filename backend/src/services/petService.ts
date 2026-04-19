@@ -8,12 +8,17 @@ import { OwnershipHistory } from "../entities/OwnershipHistory";
 import { CorrectionRequest } from "../entities/CorrectionRequest";
 import { AppError } from "../utils/errors";
 import { createNotification } from "./notificationService";
+import { resolveOnChainPetId } from "../blockchain/petIdentityResolver";
 import {
   correctionFieldMap,
   getPetFieldValue,
   CorrectionField,
 } from "./correctionFields";
 import { buildCorrectionDataHash } from "../utils/dataHash";
+import {
+  maskPublicOwnerName,
+  serializeTracePublicOwnershipItem,
+} from "./tracePublicSerializer";
 
 // Buat publicId singkat untuk hewan baru.
 export const generatePublicId = () => {
@@ -21,23 +26,176 @@ export const generatePublicId = () => {
   return `PET-${(segment || randomUUID()).slice(0, 8).toUpperCase()}`;
 };
 
-// Sembunyikan sebagian nama pemilik untuk tampilan publik.
-const maskOwnerName = (name: string) => {
-  if (!name) return "";
-  const parts = name.split(" ").filter(Boolean);
-  const [first = ""] = parts;
-  const initials = parts
-    .slice(1)
-    .map((part) => part?.[0] ?? "")
-    .join("");
-  return `${first} ${initials}`.trim();
-};
-
 // Hitung umur berdasarkan tanggal lahir.
 const calculateAge = (birthDate: Date) => {
   const diff = Date.now() - birthDate.getTime();
   const ageDate = new Date(diff);
   return Math.abs(ageDate.getUTCFullYear() - 1970);
+};
+
+type TransferContext = {
+  pet: Pet;
+  newOwner: User;
+  onChainPetId: number;
+  currentOwnerWalletAddress: string;
+  newOwnerWalletAddress: string;
+};
+
+type OwnershipHistoryStatus = "PENDING" | "COMPLETED";
+
+const buildOwnershipTimelineQuery = (petId: number) =>
+  AppDataSource.getRepository(OwnershipHistory)
+    .createQueryBuilder("history")
+    .leftJoin("history.fromOwner", "fromOwner")
+    .leftJoin("history.toOwner", "toOwner")
+    .select([
+      "history.id",
+      "history.petId",
+      "history.onChainPetId",
+      "history.txHash",
+      "history.blockNumber",
+      "history.blockTimestamp",
+      "history.createdAt",
+      "history.transferredAt",
+      "fromOwner.id",
+      "fromOwner.name",
+      "fromOwner.email",
+      "toOwner.id",
+      "toOwner.name",
+      "toOwner.email",
+    ])
+    .where("history.petId = :petId", { petId })
+    .orderBy("COALESCE(history.transferredAt, history.createdAt)", "ASC")
+    .addOrderBy("history.createdAt", "ASC")
+    .addOrderBy("history.id", "ASC");
+
+const buildPublicTraceOwnershipTimelineQuery = (petId: number) =>
+  AppDataSource.getRepository(OwnershipHistory)
+    .createQueryBuilder("history")
+    .leftJoin("history.fromOwner", "fromOwner")
+    .leftJoin("history.toOwner", "toOwner")
+    .select([
+      "history.id",
+      "history.createdAt",
+      "history.transferredAt",
+      "fromOwner.name",
+      "fromOwner.walletAddress",
+      "toOwner.name",
+      "toOwner.walletAddress",
+    ])
+    .where("history.petId = :petId", { petId })
+    .orderBy("COALESCE(history.transferredAt, history.createdAt)", "ASC")
+    .addOrderBy("history.createdAt", "ASC")
+    .addOrderBy("history.id", "ASC");
+
+const resolveOwnershipStatus = (
+  transferredAt: Date | null
+): OwnershipHistoryStatus => (transferredAt ? "COMPLETED" : "PENDING");
+
+const mapDashboardOwnershipHistoryItem = (history: OwnershipHistory) => ({
+  id: history.id,
+  petId: history.petId,
+  onChainPetId: history.onChainPetId,
+  txHash: history.txHash,
+  blockNumber: history.blockNumber,
+  blockTimestamp: history.blockTimestamp
+    ? history.blockTimestamp.toISOString()
+    : null,
+  requestedAt: history.createdAt.toISOString(),
+  transferredAt: history.transferredAt
+    ? history.transferredAt.toISOString()
+    : null,
+  status: resolveOwnershipStatus(history.transferredAt),
+  fromOwner: {
+    id: history.fromOwner?.id ?? null,
+    name: history.fromOwner?.name ?? "",
+    email: history.fromOwner?.email ?? "",
+  },
+  toOwner: {
+    id: history.toOwner?.id ?? null,
+    name: history.toOwner?.name ?? "",
+    email: history.toOwner?.email ?? "",
+  },
+});
+
+export const getTransferContext = async (
+  petId: number,
+  currentOwnerId: number,
+  newOwnerEmail: string
+): Promise<TransferContext> => {
+  const petRepo = AppDataSource.getRepository(Pet);
+  const userRepo = AppDataSource.getRepository(User);
+  const historyRepo = AppDataSource.getRepository(OwnershipHistory);
+
+  const pet = await petRepo.findOne({
+    where: { id: petId },
+    select: {
+      id: true,
+      ownerId: true,
+      status: true,
+      publicId: true,
+      onChainPetId: true,
+      dataHash: true,
+      name: true,
+      species: true,
+      breed: true,
+      birthDate: true,
+      color: true,
+      physicalMark: true,
+    },
+  });
+  if (!pet || pet.ownerId !== currentOwnerId) {
+    throw new AppError("Pet not found or access denied", 404);
+  }
+
+  if (pet.status === PetStatus.TRANSFER_PENDING) {
+    throw new AppError("Transfer sedang diproses", 400);
+  }
+
+  const newOwner = await userRepo.findOne({
+    where: { email: newOwnerEmail.trim().toLowerCase() },
+    select: { id: true, role: true, walletAddress: true, email: true, name: true },
+  });
+
+  if (!newOwner || newOwner.role !== UserRole.OWNER) {
+    throw new AppError("New owner must be a registered OWNER", 400);
+  }
+
+  if (!newOwner.walletAddress) {
+    throw new AppError("New owner does not have a registered wallet address", 400);
+  }
+
+  if (newOwner.id === currentOwnerId) {
+    throw new AppError("Cannot transfer to yourself", 400);
+  }
+
+  const pendingTransfer = await historyRepo.findOne({
+    where: { petId, transferredAt: IsNull() },
+    select: { id: true },
+  });
+
+  if (pendingTransfer) {
+    throw new AppError("Transfer already pending", 400);
+  }
+
+  const currentOwner = await userRepo.findOne({
+    where: { id: currentOwnerId },
+    select: { walletAddress: true },
+  });
+
+  if (!currentOwner?.walletAddress) {
+    throw new AppError("Current owner wallet is not registered", 400);
+  }
+
+  const onChainPetId = await resolveOnChainPetId(pet);
+
+  return {
+    pet,
+    newOwner,
+    onChainPetId,
+    currentOwnerWalletAddress: currentOwner.walletAddress,
+    newOwnerWalletAddress: newOwner.walletAddress,
+  };
 };
 
 // Simpan hewan baru ke database.
@@ -128,97 +286,107 @@ export const getOwnershipHistory = async (
   user: Express.UserContext
 ) => {
   const petRepo = AppDataSource.getRepository(Pet);
-  const historyRepo = AppDataSource.getRepository(OwnershipHistory);
   const pet = await petRepo.findOne({ where: { id: petId } });
   if (!pet) throw new AppError("Pet not found", 404);
-  if (pet.status !== PetStatus.TRANSFER_PENDING) {
-    throw new AppError("Tidak ada transfer yang perlu diterima", 400);
-  }
 
   if (user.role === UserRole.OWNER && pet.ownerId !== user.id) {
-    throw new AppError("Forbidden", 403);
+    const isParticipant = await AppDataSource.getRepository(OwnershipHistory).exist({
+      where: [
+        { petId, fromOwnerId: user.id },
+        { petId, toOwnerId: user.id },
+      ],
+    });
+    if (!isParticipant) {
+      throw new AppError("Forbidden", 403);
+    }
   }
 
-  return historyRepo
-    .createQueryBuilder("history")
-    .leftJoin("history.fromOwner", "fromOwner")
-    .leftJoin("history.toOwner", "toOwner")
-    .select([
-      "history",
-      "fromOwner.id",
-      "fromOwner.name",
-      "fromOwner.email",
-      "toOwner.id",
-      "toOwner.name",
-      "toOwner.email",
-    ])
-    .where("history.petId = :petId", { petId })
-    .orderBy("history.id", "DESC")
-    .getMany();
+  const history = await buildOwnershipTimelineQuery(petId).getMany();
+
+  return {
+    view: "dashboard_internal",
+    petId,
+    total: history.length,
+    items: history.map(mapDashboardOwnershipHistoryItem),
+  };
 };
 
 // Mulai proses transfer kepemilikan ke pemilik baru.
 export const initiateTransfer = async (
   petId: number,
   currentOwnerId: number,
-  newOwnerEmail: string
+  newOwnerEmail: string,
+  blockchain: {
+    onChainPetId: number;
+    txHash: string;
+    blockNumber: number;
+    blockTimestamp: Date;
+  }
 ) => {
-  const petRepo = AppDataSource.getRepository(Pet);
-  const userRepo = AppDataSource.getRepository(User);
-  const historyRepo = AppDataSource.getRepository(OwnershipHistory);
-  const pet = await petRepo.findOne({ where: { id: petId } });
-  if (!pet || pet.ownerId !== currentOwnerId) {
-    throw new AppError("Pet not found or access denied", 404);
-  }
-  if (pet.status === PetStatus.TRANSFER_PENDING) {
-    throw new AppError("Transfer sedang diproses", 400);
-  }
+  const context = await getTransferContext(petId, currentOwnerId, newOwnerEmail);
 
-  const newOwner = await userRepo.findOne({
-    where: { email: newOwnerEmail.trim().toLowerCase() },
-  });
-
-  if (!newOwner || newOwner.role !== UserRole.OWNER) {
-    throw new AppError("New owner must be a registered OWNER", 400);
-  }
-
-  if (newOwner.id === currentOwnerId) {
-    throw new AppError("Cannot transfer to yourself", 400);
-  }
-
-  const pendingTransfer = await historyRepo.findOne({
-    where: { petId, transferredAt: IsNull() },
-  });
-
-  if (pendingTransfer) {
-    throw new AppError("Transfer already pending", 400);
-  }
-
+  let updatedPet: Pet | null = null;
   await AppDataSource.transaction(async (manager) => {
+    await manager.getRepository(Pet).update(
+      { id: petId },
+      { ownerId: context.newOwner.id, status: PetStatus.REGISTERED }
+    );
+
     await manager.getRepository(OwnershipHistory).save({
       petId,
       fromOwnerId: currentOwnerId,
-      toOwnerId: newOwner.id,
+      toOwnerId: context.newOwner.id,
+      onChainPetId: blockchain.onChainPetId,
+      txHash: blockchain.txHash,
+      blockNumber: blockchain.blockNumber,
+      blockTimestamp: blockchain.blockTimestamp,
+      transferredAt: blockchain.blockTimestamp,
     });
-    await manager.getRepository(Pet).update(
-      { id: petId },
-      { status: PetStatus.TRANSFER_PENDING }
-    );
+
+    updatedPet = await manager.getRepository(Pet).findOne({
+      where: { id: petId },
+    });
   });
 
   await createNotification({
-    userId: newOwner.id,
-    title: "Permintaan transfer kepemilikan",
-    message: `Anda diminta menjadi pemilik baru hewan ${pet.name}. Terima transfer di aplikasi.`,
+    userId: context.newOwner.id,
+    title: "Transfer kepemilikan selesai",
+    message: `Kepemilikan hewan ${context.pet.name} telah dipindahkan ke akun Anda dan tervalidasi on-chain.`,
+  });
+  await createNotification({
+    userId: currentOwnerId,
+    title: "Transfer kepemilikan berhasil",
+    message: `Kepemilikan hewan ${context.pet.name} berhasil dipindahkan dan tervalidasi on-chain.`,
   });
 
-  return { message: "Transfer request created" };
+  if (!updatedPet) {
+    throw new AppError("Pet not found", 404);
+  }
+
+  return {
+    message: "Ownership transferred successfully",
+    pet: updatedPet,
+    blockchain: {
+      txHash: blockchain.txHash,
+      blockNumber: blockchain.blockNumber,
+      blockTimestamp: blockchain.blockTimestamp.toISOString(),
+      onChainPetId: blockchain.onChainPetId.toString(),
+    },
+  };
 };
 
 // Terima transfer kepemilikan oleh pemilik baru.
 export const acceptTransfer = async (petId: number, newOwnerId: number) => {
   const historyRepo = AppDataSource.getRepository(OwnershipHistory);
   const petRepo = AppDataSource.getRepository(Pet);
+  const pet = await petRepo.findOne({ where: { id: petId } });
+  if (!pet) throw new AppError("Pet not found", 404);
+
+  // Transfer yang sudah tersinkron on-chain dianggap selesai dan endpoint ini idempotent.
+  if (pet.ownerId === newOwnerId) {
+    return pet;
+  }
+
   const transfer = await historyRepo.findOne({
     where: { petId, toOwnerId: newOwnerId, transferredAt: IsNull() },
   });
@@ -226,8 +394,9 @@ export const acceptTransfer = async (petId: number, newOwnerId: number) => {
     throw new AppError("No pending transfer for this pet", 404);
   }
 
-  const pet = await petRepo.findOne({ where: { id: petId } });
-  if (!pet) throw new AppError("Pet not found", 404);
+  if (!transfer.txHash || !transfer.blockTimestamp || transfer.blockNumber === null) {
+    throw new AppError("Pending transfer has no verified on-chain transaction", 400);
+  }
 
   let updatedPet: Pet | null = null;
   await AppDataSource.transaction(async (manager) => {
@@ -239,7 +408,7 @@ export const acceptTransfer = async (petId: number, newOwnerId: number) => {
       );
     await manager
       .getRepository(OwnershipHistory)
-      .update({ id: transfer.id }, { transferredAt: new Date() });
+      .update({ id: transfer.id }, { transferredAt: transfer.blockTimestamp });
     updatedPet = await manager.getRepository(Pet).findOne({
       where: { id: petId },
     });
@@ -298,12 +467,22 @@ export const getTraceByPublicId = async (publicId: string) => {
     status: record.status,
   }));
 
+  const ownershipHistory = await buildPublicTraceOwnershipTimelineQuery(
+    pet.id
+  ).getMany();
+
   return {
+    publicId: pet.publicId,
     name: pet.name,
     species: pet.species,
     breed: pet.breed,
-    ownerName: maskOwnerName(pet.owner?.name ?? ""),
+    ownerName: maskPublicOwnerName(pet.owner?.name ?? ""),
     vaccines: vaccineSummary,
+    ownershipHistory: {
+      view: "trace_public",
+      total: ownershipHistory.length,
+      items: ownershipHistory.map(serializeTracePublicOwnershipItem),
+    },
   };
 };
 

@@ -3,6 +3,7 @@ import {
   createPet,
   getOwnershipHistory,
   getPetById,
+  getTransferContext,
   listPets,
   initiateTransfer,
   acceptTransfer,
@@ -13,6 +14,8 @@ import { AppError } from "../utils/errors";
 import {
   confirmRegisterPetTx,
   prepareRegisterPetTx,
+  prepareTransferOwnershipTx,
+  confirmTransferOwnershipTx,
 } from "../blockchain/petIdentityClient";
 import { buildPetDataHash } from "../utils/dataHash";
 import { ensureUserWalletAddress } from "../services/userWalletService";
@@ -213,6 +216,38 @@ export const ownershipHistoryController = async (
   }
 };
 
+export const prepareTransferController = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    if (!req.user) throw new AppError("Unauthorized", 401);
+    const petId = Number(req.params.petId);
+    if (!Number.isInteger(petId)) {
+      throw new AppError("Invalid pet id", 400);
+    }
+    const { new_owner_email } = req.body;
+    if (!new_owner_email) {
+      throw new AppError("new_owner_email required", 400);
+    }
+
+    const context = await getTransferContext(petId, req.user.id, new_owner_email);
+    const txRequest = prepareTransferOwnershipTx(
+      context.onChainPetId,
+      context.newOwnerWalletAddress
+    );
+
+    res.json({
+      onChainPetId: context.onChainPetId,
+      newOwnerWalletAddress: context.newOwnerWalletAddress,
+      txRequest,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 // Handler pengajuan transfer kepemilikan.
 export const initiateTransferController = async (
   req: Request,
@@ -225,10 +260,28 @@ export const initiateTransferController = async (
     if (!Number.isInteger(petId)) {
       throw new AppError("Invalid pet id", 400);
     }
-    const { new_owner_email } = req.body;
+    const { new_owner_email, txHash } = req.body;
     if (!new_owner_email) throw new AppError("new_owner_email required", 400);
+    if (!txHash || typeof txHash !== "string" || !txHash.trim()) {
+      throw new AppError("txHash is required", 400);
+    }
 
-    const result = await initiateTransfer(petId, req.user.id, new_owner_email);
+    const context = await getTransferContext(petId, req.user.id, new_owner_email);
+    await ensureUserWalletAddress(req.user.id, context.currentOwnerWalletAddress);
+
+    const { metadata } = await confirmTransferOwnershipTx({
+      txHash: txHash.trim(),
+      expectedPetId: context.onChainPetId,
+      expectedFromWalletAddress: context.currentOwnerWalletAddress,
+      expectedToWalletAddress: context.newOwnerWalletAddress,
+    });
+
+    const result = await initiateTransfer(petId, req.user.id, new_owner_email, {
+      onChainPetId: context.onChainPetId,
+      txHash: metadata.txHash,
+      blockNumber: metadata.blockNumber,
+      blockTimestamp: metadata.blockTimestamp,
+    });
     res.json(result);
   } catch (error) {
     next(error);

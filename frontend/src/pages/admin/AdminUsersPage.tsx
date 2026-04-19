@@ -289,14 +289,15 @@ export const AdminUsersPage = () => {
                         >
                           Edit
                         </button>
-                        <button
-                          type="button"
-                          className="rounded-full border border-red-200 px-3 py-1 text-xs text-red-600 disabled:cursor-not-allowed disabled:border-slate-200 disabled:text-slate-400"
-                          onClick={() => handleDelete(item)}
-                          disabled={Boolean(item.walletAddress)}
-                        >
-                          {item.walletAddress ? 'Tidak bisa dihapus' : 'Hapus'}
-                        </button>
+                        {!item.walletAddress && (
+                          <button
+                            type="button"
+                            className="rounded-full border border-red-200 px-3 py-1 text-xs text-red-600"
+                            onClick={() => handleDelete(item)}
+                          >
+                            Hapus
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>

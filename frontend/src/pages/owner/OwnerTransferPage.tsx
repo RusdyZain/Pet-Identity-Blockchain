@@ -4,6 +4,7 @@ import { useParams } from 'react-router-dom';
 import { petApi } from '../../services/apiClient';
 import { TextField } from '../../components/forms/TextField';
 import { PageHeader } from '../../components/common/PageHeader';
+import { sendPreparedTransaction } from '../../services/walletClient';
 
 // Form transfer kepemilikan hewan ke email pemilik baru.
 export const OwnerTransferPage = () => {
@@ -21,8 +22,15 @@ export const OwnerTransferPage = () => {
     setMessage('');
     setError('');
     try {
-      await petApi.initiateTransfer(id, email);
-      setMessage('Permintaan transfer dikirim. Pemilik baru harus menerima via aplikasi.');
+      const prepared = await petApi.prepareTransfer(id, email);
+      const { txHash } = await sendPreparedTransaction(prepared.txRequest);
+      const result = await petApi.initiateTransfer(id, {
+        newOwnerEmail: email,
+        txHash,
+      });
+      setMessage(
+        `${result?.message ?? 'Transfer kepemilikan selesai'} (tx: ${txHash}). Data owner off-chain sudah disinkronkan dengan event on-chain.`,
+      );
     } catch (err: any) {
       setError(err?.response?.data?.message ?? 'Gagal mengirim permintaan transfer.');
     } finally {

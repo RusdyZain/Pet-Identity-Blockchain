@@ -7,6 +7,8 @@ import { MedicalRecord } from "../entities/MedicalRecord";
 import { OwnershipHistory } from "../entities/OwnershipHistory";
 import { CorrectionRequest } from "../entities/CorrectionRequest";
 import { Notification } from "../entities/Notification";
+import { WalletChallenge } from "../entities/WalletChallenge";
+import { VaccineReminderLog } from "../entities/VaccineReminderLog";
 
 // DataSource utama untuk koneksi PostgreSQL via TypeORM.
 export const AppDataSource = new DataSource({
@@ -19,6 +21,8 @@ export const AppDataSource = new DataSource({
     OwnershipHistory,
     CorrectionRequest,
     Notification,
+    WalletChallenge,
+    VaccineReminderLog,
   ],
   synchronize: false,
   logging: false,

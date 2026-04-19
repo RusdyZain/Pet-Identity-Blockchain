@@ -75,6 +75,23 @@ ADMIN_EMAIL=admin@example.com
 ADMIN_WALLET_ADDRESS=0xYourAdminWalletAddress
 # Optional: dipakai hanya untuk form CRUD admin (bukan login wallet)
 ADMIN_PASSWORD=isi_jika_perlu
+
+# Wallet challenge store backend:
+# - auto (default): pakai Redis jika REDIS_URL tersedia & connectable, fallback ke DB
+# - redis: wajib Redis (jika gagal connect, endpoint auth akan error)
+# - database: pakai tabel wallet_challenges
+WALLET_CHALLENGE_STORE=auto
+WALLET_CHALLENGE_TTL_MS=300000
+REDIS_URL=redis://localhost:6379
+WALLET_CHALLENGE_REDIS_KEY_PREFIX=wallet_challenge
+WALLET_CHALLENGE_REDIS_CONNECT_TIMEOUT_MS=1000
+
+# Scheduler reminder vaksin otomatis
+VACCINE_REMINDER_ENABLED=true
+VACCINE_REMINDER_INTERVAL_MS=21600000
+VACCINE_REMINDER_DUE_AFTER_DAYS=365
+VACCINE_REMINDER_LOOKAHEAD_DAYS=14
+VACCINE_REMINDER_OVERDUE_LOOKBACK_DAYS=30
 ```
 
 Catatan:
@@ -83,6 +100,11 @@ Catatan:
 3. Backend saat startup menjalankan `ensureSchema` untuk menambah kolom/index baru dan dedupe `wallet_address` lama jika duplikat.
 4. Jika `ADMIN_SEED_ENABLED=true`, backend akan upsert akun `ADMIN` berdasarkan `ADMIN_EMAIL` + `ADMIN_WALLET_ADDRESS`.
 5. Login tetap lewat wallet (`/login`), bukan password.
+6. Untuk multi-instance auth challenge, set `WALLET_CHALLENGE_STORE=auto` + `REDIS_URL` agar challenge store diprioritaskan ke Redis.
+7. Jika Redis belum tersedia, set `WALLET_CHALLENGE_STORE=database` untuk fallback ke tabel `wallet_challenges`.
+8. Reminder vaksin berjalan otomatis saat backend startup. Reminder dihitung per kombinasi `pet + vaccine_type`, menggunakan `given_at + VACCINE_REMINDER_DUE_AFTER_DAYS`.
+9. Reminder terkirim hanya sekali per `(pet_id, vaccine_type, due_date)` melalui tabel `vaccine_reminder_logs`.
+10. `VACCINE_REMINDER_LOOKAHEAD_DAYS` dipakai untuk reminder yang akan jatuh tempo, sedangkan `VACCINE_REMINDER_OVERDUE_LOOKBACK_DAYS` untuk catch-up reminder yang sudah lewat tempo tapi masih dalam jendela batas.
 
 ## 5. Deploy Smart Contract
 
