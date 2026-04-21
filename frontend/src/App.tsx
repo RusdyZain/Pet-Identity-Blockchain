@@ -22,7 +22,7 @@ import { ClinicNotificationsPage } from './pages/clinic/ClinicNotificationsPage'
 import { AdminDashboard } from './pages/admin/AdminDashboard';
 import { AdminUsersPage } from './pages/admin/AdminUsersPage';
 import { AdminPetsPage } from './pages/admin/AdminPetsPage';
-import BlockchainSimulatorPage from './pages/BlockchainSimulatorPage';
+// import BlockchainSimulatorPage from './pages/BlockchainSimulatorPage';
 
 // App merangkum seluruh konfigurasi rute dan batasan akses.
 const App = () => {
@@ -58,7 +58,7 @@ const App = () => {
           <Route path="/clinic/medical-records/pending" element={<ClinicPendingRecords />} />
           <Route path="/clinic/corrections" element={<ClinicCorrectionsPage />} />
           <Route path="/clinic/notifications" element={<ClinicNotificationsPage />} />
-          <Route path="/clinic/blockchain-simulator" element={<BlockchainSimulatorPage />} />
+          {/* <Route path="/clinic/blockchain-simulator" element={<BlockchainSimulatorPage />} /> */}
         </Route>
       </Route>
 
@@ -68,7 +68,7 @@ const App = () => {
           <Route path="/admin/dashboard" element={<AdminDashboard />} />
           <Route path="/admin/users" element={<AdminUsersPage />} />
           <Route path="/admin/pets" element={<AdminPetsPage />} />
-          <Route path="/admin/blockchain-simulator" element={<BlockchainSimulatorPage />} />
+          {/* <Route path="/admin/blockchain-simulator" element={<BlockchainSimulatorPage />} /> */}
         </Route>
       </Route>
 

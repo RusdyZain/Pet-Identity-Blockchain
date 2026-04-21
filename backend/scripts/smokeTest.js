@@ -3,44 +3,63 @@ const path = require('path');
 const { ethers } = require('ethers');
 require('dotenv').config();
 
-// Script sederhana untuk memastikan kontrak bisa diakses.
 async function main() {
-  const { BLOCKCHAIN_RPC_URL, BLOCKCHAIN_PRIVATE_KEY, PET_IDENTITY_ADDRESS } = process.env;
+  // Ambil raw value
+  let rawKey = process.env.BLOCKCHAIN_PRIVATE_KEY || "";
+  
+  // MEMBERSIHKAN KEY: hapus spasi, tanda kutip, dan karakter non-alfa-numerik lainnya
+  let cleanKey = rawKey.replace(/['" ]/g, '').trim();
 
-  // Validasi env wajib sebelum konek ke blockchain.
-  if (!BLOCKCHAIN_RPC_URL) {
-    throw new Error('Missing BLOCKCHAIN_RPC_URL in environment variables.');
-  }
-  if (!BLOCKCHAIN_PRIVATE_KEY) {
-    throw new Error('Missing BLOCKCHAIN_PRIVATE_KEY in environment variables.');
-  }
-  if (!PET_IDENTITY_ADDRESS) {
-    throw new Error('Missing PET_IDENTITY_ADDRESS in environment variables.');
+  // Pastikan ada prefix 0x
+  if (cleanKey && !cleanKey.startsWith('0x')) {
+    cleanKey = '0x' + cleanKey;
   }
 
-  const provider = new ethers.JsonRpcProvider(BLOCKCHAIN_RPC_URL);
-  const wallet = new ethers.Wallet(BLOCKCHAIN_PRIVATE_KEY, provider);
+  const RPC_URL = (process.env.BLOCKCHAIN_RPC_URL || "").trim();
+  const CONTRACT_ADDRESS = (process.env.PET_IDENTITY_ADDRESS || "").trim();
 
-  // Baca ABI kontrak hasil compile.
+  console.log('--- Memulai Smoke Test (Debug Mode) ---');
+
+  if (!RPC_URL || !cleanKey || !CONTRACT_ADDRESS) {
+    console.error("❌ Data .env tidak lengkap.");
+    process.exit(1);
+  }
+
+  const provider = new ethers.JsonRpcProvider(RPC_URL);
+
+  let wallet;
+  try {
+    wallet = new ethers.Wallet(cleanKey, provider);
+    console.log('✅ Wallet Address Terbaca:', wallet.address);
+  } catch (e) {
+    console.error('❌ Ethers tetap menolak Private Key tersebut.');
+    console.error('Tips: Pastikan panjang private key adalah 64 karakter (66 dengan 0x).');
+    throw e;
+  }
+
   const artifactPath = path.join(
-    __dirname,
-    '..',
-    'artifacts',
-    'contracts',
-    'PetIdentityRegistry.sol',
-    'PetIdentityRegistry.json'
+    __dirname, '..', 'artifacts', 'contracts', 
+    'PetIdentityRegistry.sol', 'PetIdentityRegistry.json'
   );
 
-  const artifact = JSON.parse(fs.readFileSync(artifactPath, 'utf8'));
-  const contract = new ethers.Contract(PET_IDENTITY_ADDRESS, artifact.abi, wallet);
+  if (!fs.existsSync(artifactPath)) {
+    throw new Error(`Artifact tidak ditemukan di: ${artifactPath}`);
+  }
 
-  // Uji akses sederhana ke kontrak.
-  console.log('Running smoke test as wallet:', wallet.address);
-  const nextPetId = await contract.nextPetId();
-  console.log('Contract reachable. Current nextPetId:', nextPetId.toString());
+  const artifact = JSON.parse(fs.readFileSync(artifactPath, 'utf8'));
+  const contract = new ethers.Contract(CONTRACT_ADDRESS, artifact.abi, wallet);
+
+  try {
+    const nextId = await contract.nextPetId();
+    console.log('🔗 KONEKSI BERHASIL!');
+    console.log('📜 Contract State:', nextId.toString());
+  } catch (err) {
+    throw new Error(`Gagal memanggil kontrak: ${err.message}`);
+  }
 }
 
 main().catch((error) => {
-  console.error('Smoke test failed:', error);
+  console.error('\n🛑 STATUS: Gagal');
+  console.error('Detail Error:', error.message);
   process.exitCode = 1;
 });

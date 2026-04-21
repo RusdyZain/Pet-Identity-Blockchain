@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { UserRole } from "../types/enums";
 import {
+  checkIsClinicController,
   createMedicalRecordController,
   listMedicalRecordsController,
   listPendingRecordsController,
@@ -54,5 +55,12 @@ router.patch(
   authorize([UserRole.CLINIC]),
   verifyMedicalRecordController
 );
+
+router.get(
+  "/medical-records/check-is-user-clinic",
+  authenticate(),
+  checkIsClinicController
+);
+
 
 export default router;

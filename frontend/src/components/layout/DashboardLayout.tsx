@@ -1,6 +1,8 @@
 import { Link, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import type { UserRole } from '../../types';
+import { useEffect, useState } from 'react';
+import { medicalRecordApi } from '../../services/apiClient';
 
 type NavLink = { label: string; to: string; description?: string };
 type RoleCopy = { portalName: string; summary: string };
@@ -18,13 +20,13 @@ const navConfig: Record<UserRole, NavLink[]> = {
     { label: 'Pending Vaksin', to: '/clinic/medical-records/pending', description: 'Verifikasi catatan' },
     { label: 'Koreksi Data', to: '/clinic/corrections', description: 'Review permintaan owner' },
     { label: 'Notifikasi', to: '/clinic/notifications', description: 'Update reguler' },
-    { label: 'Simulasi Chain', to: '/clinic/blockchain-simulator', description: 'Uji proses tx klinik' },
+    // { label: 'Simulasi Chain', to: '/clinic/blockchain-simulator', description: 'Uji proses tx klinik' },
   ],
   ADMIN: [
     { label: 'Dashboard', to: '/admin/dashboard', description: 'Statistik global' },
     { label: 'Kelola Akun', to: '/admin/users', description: 'CRUD akun & role' },
     { label: 'Data Hewan', to: '/admin/pets', description: 'Semua hewan terdaftar' },
-    { label: 'Simulasi Chain', to: '/admin/blockchain-simulator', description: 'Debug flow blockchain' },
+    // { label: 'Simulasi Chain', to: '/admin/blockchain-simulator', description: 'Debug flow blockchain' },
   ],
   PUBLIC_VERIFIER: [],
 };
@@ -52,6 +54,16 @@ const roleCopy: Record<UserRole, RoleCopy> = {
 export const DashboardLayout = () => {
   const { user, logout } = useAuth();
   const location = useLocation();
+
+  const [isUserClinic, setIsUserClinic] = useState(false)
+
+  useEffect(() => {
+    medicalRecordApi.isUserClinic().then((isClinic) => {
+      setIsUserClinic(isClinic);
+    }).catch(() => {
+      setIsUserClinic(false);
+    });
+  }, []);
 
   if (!user) return null;
 
@@ -100,7 +112,7 @@ export const DashboardLayout = () => {
             <div>
               <p className="text-xs uppercase tracking-widest text-slate-400">Masuk sebagai</p>
               <p className="text-2xl font-semibold text-secondary">{user.name}</p>
-              <p className="text-sm capitalize text-slate-500">{user.role.toLowerCase()}</p>
+              <p className="text-sm capitalize text-slate-500">{user.role.toLowerCase() + " - " + (isUserClinic ? "verified" : "not verified")}</p>
             </div>
             <button
               onClick={logout}

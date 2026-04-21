@@ -1,12 +1,13 @@
 import { config as loadEnv } from "dotenv";
-import { Contract, JsonRpcProvider, getAddress } from "ethers";
+import { Contract, ContractTransactionResponse, JsonRpcProvider, getAddress } from "ethers";
 import path from "path";
 import fs from "fs";
 import { AppError } from "../utils/errors";
+import { Wallet } from "ethers";
 
 loadEnv();
 
-const { BLOCKCHAIN_RPC_URL, PET_IDENTITY_ADDRESS } = process.env;
+const { BLOCKCHAIN_RPC_URL, PET_IDENTITY_ADDRESS, ADMIN_PRIVATE_KEY } = process.env;
 
 if (!BLOCKCHAIN_RPC_URL) {
   throw new Error("Missing BLOCKCHAIN_RPC_URL in environment variables.");
@@ -14,8 +15,14 @@ if (!BLOCKCHAIN_RPC_URL) {
 if (!PET_IDENTITY_ADDRESS) {
   throw new Error("Missing PET_IDENTITY_ADDRESS in environment variables.");
 }
+if (!ADMIN_PRIVATE_KEY) {
+  throw new Error("Missing ADMIN_PRIVATE_KEY in environment variables.");
+}
 
 const provider = new JsonRpcProvider(BLOCKCHAIN_RPC_URL);
+
+const adminSigner = new Wallet(ADMIN_PRIVATE_KEY, provider);
+
 const contractAddress = getAddress(PET_IDENTITY_ADDRESS);
 const contractAddressLower = contractAddress.toLowerCase();
 
@@ -25,10 +32,70 @@ const artifactPath = path.join(
 );
 const artifactJson = JSON.parse(fs.readFileSync(artifactPath, "utf-8"));
 
+export enum PetStatus {
+  PENDING = 0,
+  VERIFIED = 1,
+  REJECTED = 2,
+}
+
+export interface Pet {
+  id: bigint;
+  dataHash: string;
+  owner: string;
+  status: PetStatus;
+  createdAt: bigint;
+  verifiedAt: bigint;
+  verifiedBy: string;
+  exists: boolean;
+}
+
+export interface MedicalRecord {
+  id: bigint;
+  petId: bigint;
+  dataHash: string;
+  clinic: string;
+  status: PetStatus;
+  createdAt: bigint;
+  verifiedAt: bigint;
+  verifiedBy: string;
+}
+
 type PetIdentityContract = Contract & {
+  // --- Fungsi Read (View/Pure) ---
+  getPet: (petId: bigint | number) => Promise<Pet>;
+  getMedicalRecords: (petId: bigint | number) => Promise<MedicalRecord[]>;
   getPetIdByHash: (dataHash: string) => Promise<bigint>;
-  getPet: (petId: number) => Promise<unknown>;
-  getMedicalRecords: (petId: number) => Promise<unknown[]>;
+  clinics: (address: string) => Promise<boolean>;
+  contractOwner: () => Promise<string>;
+  nextPetId: () => Promise<bigint>;
+  nextRecordId: () => Promise<bigint>;  
+
+  // --- Fungsi Write (State Changing) ---
+  // Fungsi-fungsi ini mengembalikan ContractTransactionResponse
+  addClinic: (clinicAddress: string) => Promise<ContractTransactionResponse>;
+  removeClinic: (clinicAddress: string) => Promise<ContractTransactionResponse>;
+  
+  registerPet: (dataHash: string) => Promise<ContractTransactionResponse>;
+  
+  updatePetBasicData: (
+    petId: bigint | number, 
+    dataHash: string
+  ) => Promise<ContractTransactionResponse>;
+  
+  addMedicalRecord: (
+    petId: bigint | number, 
+    dataHash: string
+  ) => Promise<ContractTransactionResponse>;
+  
+  verifyMedicalRecord: (
+    recordId: bigint | number, 
+    status: PetStatus
+  ) => Promise<ContractTransactionResponse>;
+  
+  transferOwnership: (
+    petId: bigint | number, 
+    newOwner: string
+  ) => Promise<ContractTransactionResponse>;
 };
 
 const contract: PetIdentityContract = new Contract(
@@ -36,6 +103,7 @@ const contract: PetIdentityContract = new Contract(
   artifactJson.abi,
   provider
 ) as PetIdentityContract;
+const adminContract = contract.connect(adminSigner) as PetIdentityContract;
 
 const LOCAL_CHAIN_IDS = new Set([1337, 31337]);
 let cachedChainId: number | null = null;
@@ -58,6 +126,66 @@ const normalizeWalletAddress = (walletAddress: string) => {
     throw new AppError("Invalid wallet address", 400);
   }
 };
+
+export async function isClinic(address: string): Promise<boolean> {
+  return contract.clinics(normalizeWalletAddress(address));
+}
+export async function addClinic(clinicAddress: string): Promise<ContractTransactionResponse> {
+  const normalizedAddress = normalizeWalletAddress(clinicAddress);
+
+  const ownerOnChain = await contract.contractOwner();
+  const adminAddress = await adminSigner.getAddress();
+  
+  if (ownerOnChain.toLowerCase() !== adminAddress.toLowerCase()) {
+    throw new Error("Backend Admin key is not the contract owner.");
+  }
+
+  // 2. Check if the clinic is already added to avoid redundant Gas spend
+  const alreadyAClinic = await contract.clinics(normalizedAddress);
+  if (alreadyAClinic) {
+    console.log("Clinic already registered on blockchain. Skipping...");
+    throw new AppError("Clinic already registered on blockchain", 500);
+  }
+
+  const tx = await adminContract.addClinic(normalizedAddress);
+  const receipt = await tx.wait();
+  if (!receipt) {
+    throw new AppError("Transaction not found or not mined yet", 400);
+  }
+  if (receipt.status !== 1) {
+    throw new AppError("Failed to add clinic on blockchain", 500);
+  }
+  return tx;
+}
+
+export async function removeClinic(clinicAddress: string): Promise<ContractTransactionResponse> {
+  const normalizedAddress = normalizeWalletAddress(clinicAddress);
+
+  const ownerOnChain = await contract.contractOwner();
+  const adminAddress = await adminSigner.getAddress();
+  
+  if (ownerOnChain.toLowerCase() !== adminAddress.toLowerCase()) {
+    throw new Error("Backend Admin key is not the contract owner.");
+  }
+
+  // 2. Check if the clinic is already added to avoid redundant Gas spend
+  const alreadyAClinic = await contract.clinics(normalizedAddress);
+  if (!alreadyAClinic) {
+    console.log("Clinic not registered on blockchain. Skipping...");
+    throw new AppError("Clinic not registered on blockchain", 500);
+  }
+
+  const tx = await adminContract.removeClinic(normalizedAddress);
+  const receipt = await tx.wait();
+  if (!receipt) {
+    throw new AppError("Transaction not found or not mined yet", 400);
+  }
+  if (receipt.status !== 1) {
+    throw new AppError("Failed to remove clinic on blockchain", 500);
+  }
+  return tx;
+
+}
 
 const getChainId = async (): Promise<number> => {
   if (cachedChainId !== null) {

@@ -230,6 +230,10 @@ export const medicalRecordApi = {
     );
     return data;
   },
+  isUserClinic: async () => {
+    const { data } = await api.get<{ isClinic: boolean }>('/medical-records/check-is-user-clinic');
+    return data.isClinic;
+  },
 };
 
 // API koreksi data dari pemilik.

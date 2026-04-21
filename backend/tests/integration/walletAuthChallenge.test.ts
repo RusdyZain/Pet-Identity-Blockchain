@@ -115,7 +115,7 @@ describe("Wallet challenge auth storage flow", () => {
     const suffix = `${Date.now()}-${Math.floor(Math.random() * 1_000_000)}`;
     const wallet = Wallet.createRandom();
     await registerWalletUser({
-      wallet,
+      wallet: wallet as any, // Tambahkan 'as any' di sini
       name: "Challenge User",
       email: `challenge.user.${suffix}@example.com`,
     });
