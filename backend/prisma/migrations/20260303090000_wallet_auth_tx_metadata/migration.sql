@@ -1,33 +1,16 @@
--- Clean legacy wallet duplicates before adding unique index
-UPDATE "users"
-SET "wallet_address" = BTRIM("wallet_address")
-WHERE "wallet_address" IS NOT NULL;
+-- Buat tabelnya dulu jika belum ada
+CREATE TABLE IF NOT EXISTS "users" (
+    "id" SERIAL PRIMARY KEY,
+    "username" TEXT,
+    "wallet_address" TEXT
+);
 
-UPDATE "users"
-SET "wallet_address" = NULL
-WHERE "wallet_address" IS NOT NULL
-  AND "wallet_address" = '';
-
-WITH ranked_wallets AS (
-  SELECT
-    id,
-    ROW_NUMBER() OVER (
-      PARTITION BY LOWER("wallet_address")
-      ORDER BY id
-    ) AS rn
-  FROM "users"
-  WHERE "wallet_address" IS NOT NULL
-)
-UPDATE "users" AS u
-SET "wallet_address" = NULL
-FROM ranked_wallets rw
-WHERE u.id = rw.id
-  AND rw.rn > 1;
-
--- Add wallet uniqueness for wallet-based auth
+-- Baru jalankan Unique Index
 CREATE UNIQUE INDEX IF NOT EXISTS "users_wallet_address_key"
 ON "users"("wallet_address")
 WHERE "wallet_address" IS NOT NULL;
+
+-- 4. LANJUTKAN DENGAN ALTER TABLE PETS DLL (Sudah benar)
 
 -- Persist on-chain block metadata for audit trails
 ALTER TABLE "pets"

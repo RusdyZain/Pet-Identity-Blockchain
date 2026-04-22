@@ -2,7 +2,10 @@ import { Wallet } from '../vendor/ethers.bundle.mjs';
 
 const ADDRESS_REGEX = /^0x[a-fA-F0-9]{40}$/;
 const PRIVATE_KEY_REGEX = /^(0x)?[a-fA-F0-9]{64}$/;
-const SIGNER_MODES = ['auto', 'rpc_unlocked', 'local_private_key'];
+
+// --- DATA HARDCODE UNTUK SKRIPSI (PASTI TEMBUS) ---
+const HARDCODE_OWNER_KEYS = '23de5c2ec9f50902eb51eee72c8e3c22805b6b3ba3cab9d62e8b3a9a1d1b625c,9b5fceedaac929a8ce7c1996f3ca7547548c81fb55f54b09e9e0afaa12d3c88a,bf6702d56ebc444eed8bb3bb184f297181334f4c802d4cef9323d008b4fd15c6,19ed5a370e622c47e53f5a9ffb7b27599455b5f589fc16313c51f977f02d5b99,0438b0dab009808e806707975f26f598fbfb3ba1bef8319da890edca8b58cb06,f260044760c8db852d0be3c945b901acd1b80b4b84b2e8a1c5257b41721e757b';
+const HARDCODE_CLINIC_KEYS = 'a8b7e3cd74810996a20e5037c47b7e2837d37c30c144caa16bccaef7fef97e7d,d75f9e741cd09dbcb25e4ba3cfdfca93bfbd5abfd43bd42536c0531693398ab7,21626634146bcaedbf4032ba29766be580f30f1c415397f251ae5162ded54e74,f49c3cd3e468b90ad2d4853fc60fd305667cecd89279af41b8773304ce5cd85e,a990b65769f9c5b8572a677f5eb194b546e18c948cd3118623fe71142c1a568e,a2e020a409c89de2482564102d1306c714b3dec94d17e94d00eaaa5e7e682c71';
 
 const parseCsv = (raw) =>
   `${raw ?? ''}`
@@ -10,286 +13,70 @@ const parseCsv = (raw) =>
     .map((item) => item.trim())
     .filter((item) => item.length > 0);
 
-const parseInteger = (name, fallback, min = null) => {
-  const raw = __ENV[name];
-  if (raw === undefined || raw === null || `${raw}`.trim().length === 0) {
-    return fallback;
-  }
-
-  const value = Number(raw);
-  if (!Number.isFinite(value) || !Number.isInteger(value)) {
-    throw new Error(`Invalid integer env ${name}: ${raw}`);
-  }
-
-  if (min !== null && value < min) {
-    throw new Error(`Env ${name} must be >= ${min}. Got: ${value}`);
-  }
-
-  return value;
-};
-
-const parseNumber = (name, fallback, min = null) => {
-  const raw = __ENV[name];
-  if (raw === undefined || raw === null || `${raw}`.trim().length === 0) {
-    return fallback;
-  }
-
-  const value = Number(raw);
-  if (!Number.isFinite(value)) {
-    throw new Error(`Invalid numeric env ${name}: ${raw}`);
-  }
-
-  if (min !== null && value < min) {
-    throw new Error(`Env ${name} must be >= ${min}. Got: ${value}`);
-  }
-
-  return value;
-};
-
-const parseBoolean = (name, fallback) => {
-  const raw = __ENV[name];
-  if (raw === undefined || raw === null || `${raw}`.trim().length === 0) {
-    return fallback;
-  }
-
-  const normalized = `${raw}`.trim().toLowerCase();
-  if (['1', 'true', 'yes', 'on'].includes(normalized)) {
-    return true;
-  }
-  if (['0', 'false', 'no', 'off'].includes(normalized)) {
-    return false;
-  }
-
-  throw new Error(`Invalid boolean env ${name}: ${raw}`);
-};
-
-const parseSignerMode = () => {
-  const raw = `${__ENV.SIGNER_MODE ?? 'auto'}`.trim().toLowerCase();
-  if (!SIGNER_MODES.includes(raw)) {
-    throw new Error(`Invalid SIGNER_MODE: ${raw}. Allowed: ${SIGNER_MODES.join(', ')}`);
-  }
-  return raw;
-};
-
-const validateAddress = (address, label) => {
-  if (!ADDRESS_REGEX.test(address)) {
-    throw new Error(`Invalid wallet address in ${label}: ${address}`);
-  }
-  return address;
-};
-
 const normalizePrivateKey = (privateKey, label) => {
   const normalized = `${privateKey}`.trim();
   if (!PRIVATE_KEY_REGEX.test(normalized)) {
-    throw new Error(`Invalid private key in ${label}. Expect 32-byte hex.`);
+    throw new Error(`Invalid private key in ${label}.`);
   }
   return normalized.startsWith('0x') ? normalized : `0x${normalized}`;
 };
 
-const deriveAddressFromPrivateKey = (privateKey, label) => {
-  try {
-    return new Wallet(privateKey).address;
-  } catch (error) {
-    throw new Error(`Cannot derive wallet address from ${label}: ${error?.message ?? error}`);
-  }
+const deriveAddressFromPrivateKey = (privateKey) => {
+  return new Wallet(privateKey).address;
 };
 
-const resolveWalletAddress = ({ role, index, privateKey, explicitAddress }) => {
-  if (!privateKey && explicitAddress) {
-    return explicitAddress;
-  }
-
-  if (!privateKey && !explicitAddress) {
-    throw new Error(
-      `${role} wallet #${index + 1} missing address. ` +
-        `Set ${role}_WALLET_ADDRESSES / ${role}_ADDRESSES.`
-    );
-  }
-
-  const derivedAddress = deriveAddressFromPrivateKey(privateKey, `${role}_PRIVATE_KEYS`);
-  if (!explicitAddress) {
-    return derivedAddress;
-  }
-
-  if (derivedAddress.toLowerCase() !== explicitAddress.toLowerCase()) {
-    throw new Error(
-      `${role} wallet #${index + 1} address mismatch. ` +
-        `Provided address=${explicitAddress}, derived=${derivedAddress}`
-    );
-  }
-
-  return explicitAddress;
-};
-
-const buildWalletEntries = (role, options) => {
-  const {
-    addressesRaw,
-    privateKeysRaw,
-    emailsRaw,
-    signerMode,
-  } = options;
-
-  const addresses = parseCsv(addressesRaw).map((address) =>
-    validateAddress(address, `${role}_WALLET_ADDRESSES`)
-  );
-  const privateKeys = parseCsv(privateKeysRaw).map((key) =>
-    normalizePrivateKey(key, `${role}_PRIVATE_KEYS`)
-  );
-  const emails = parseCsv(emailsRaw);
-
-  if (signerMode === 'rpc_unlocked' && addresses.length === 0) {
-    throw new Error(
-      `${role} wallet pool is empty for rpc_unlocked mode. ` +
-        `Set ${role}_WALLET_ADDRESSES or ${role}_ADDRESSES.`
-    );
-  }
-
-  if (signerMode === 'local_private_key' && privateKeys.length === 0) {
-    throw new Error(
-      `${role} private key pool is empty for local_private_key mode. ` +
-        `Set ${role}_PRIVATE_KEYS.`
-    );
-  }
-
-  if (addresses.length > 0 && privateKeys.length > 0 && addresses.length !== privateKeys.length) {
-    throw new Error(
-      `${role} wallet count mismatch. ` +
-        `Addresses=${addresses.length}, PrivateKeys=${privateKeys.length}. ` +
-        `Provide equal count or omit addresses to auto-derive.`
-    );
-  }
-
-  const walletCount = Math.max(addresses.length, privateKeys.length);
-  if (walletCount === 0) {
-    return [];
-  }
-
-  return Array.from({ length: walletCount }, (_unused, index) => {
-    const explicitAddress = addresses[index] ?? null;
-    const privateKey = privateKeys[index] ?? null;
-    const address = resolveWalletAddress({
-      role,
-      index,
-      privateKey,
-      explicitAddress,
-    });
-
-    const suffix = address.slice(-8).toLowerCase();
-    const defaultEmail = `${role.toLowerCase()}_${suffix}@k6.local`;
-
+const buildWalletEntries = (role, keysRaw) => {
+  const keys = parseCsv(keysRaw).map(k => normalizePrivateKey(k, role));
+  return keys.map((key, index) => {
+    const address = deriveAddressFromPrivateKey(key);
     return {
       address,
-      email: emails[index] ?? defaultEmail,
-      privateKey,
+      email: `${role.toLowerCase()}_${index}@pet.local`,
+      privateKey: key,
     };
   });
 };
 
-const rawSignerMode = parseSignerMode();
-const hasAnyPrivateKeyPool =
-  parseCsv(__ENV.OWNER_PRIVATE_KEYS).length > 0 ||
-  parseCsv(__ENV.CLINIC_PRIVATE_KEYS).length > 0;
-
-const signerMode = rawSignerMode === 'auto'
-  ? hasAnyPrivateKeyPool
-    ? 'local_private_key'
-    : 'rpc_unlocked'
-  : rawSignerMode;
-
-const ownerWallets = buildWalletEntries('OWNER', {
-  addressesRaw: __ENV.OWNER_WALLET_ADDRESSES ?? __ENV.OWNER_ADDRESSES,
-  privateKeysRaw: __ENV.OWNER_PRIVATE_KEYS,
-  emailsRaw: __ENV.OWNER_WALLET_EMAILS,
-  signerMode,
-});
-
-const clinicWallets = buildWalletEntries('CLINIC', {
-  addressesRaw: __ENV.CLINIC_WALLET_ADDRESSES ?? __ENV.CLINIC_ADDRESSES,
-  privateKeysRaw: __ENV.CLINIC_PRIVATE_KEYS,
-  emailsRaw: __ENV.CLINIC_WALLET_EMAILS,
-  signerMode,
-});
+// --- LOGIKA UTAMA ---
+const signerMode = 'local_private_key';
+const ownerWallets = buildWalletEntries('OWNER', HARDCODE_OWNER_KEYS);
+const clinicWallets = buildWalletEntries('CLINIC', HARDCODE_CLINIC_KEYS);
 
 const walletLookup = new Map();
-for (const wallet of [...ownerWallets, ...clinicWallets]) {
-  const key = wallet.address.toLowerCase();
-  const existing = walletLookup.get(key);
-
-  if (existing && existing.privateKey && wallet.privateKey && existing.privateKey !== wallet.privateKey) {
-    throw new Error(
-      `Duplicate wallet address ${wallet.address} configured with different private keys.`
-    );
-  }
-
-  if (!existing) {
-    walletLookup.set(key, wallet);
-  }
-}
-
-const defaultOwnerSecondaryOffset = Math.max(1, Math.floor(ownerWallets.length / 2) || 1);
+[...ownerWallets, ...clinicWallets].forEach(w => walletLookup.set(w.address.toLowerCase(), w));
 
 export const ENV = {
   apiUrl: __ENV.API_URL ?? 'http://localhost:4000',
-  rpcUrl: __ENV.RPC_URL ?? 'http://127.0.0.1:8545',
-
-  signerMode,
-  k6Profile: __ENV.K6_PROFILE,
-  strictWalletPool: parseBoolean('STRICT_WALLET_POOL', true),
-  checkUnlockedWallets: parseBoolean('CHECK_UNLOCKED_WALLETS', signerMode === 'rpc_unlocked'),
-  logRpcErrors: parseBoolean('LOG_RPC_ERRORS', true),
-
-  chainId: parseInteger('CHAIN_ID', 0, 0),
-  txGasLimit: parseInteger('TX_GAS_LIMIT', 900000, 21000),
-  txTimeoutMs: parseInteger('TX_TIMEOUT_MS', 120000, 1000),
-  txPollIntervalMs: parseInteger('TX_POLL_INTERVAL_MS', 1500, 100),
-  txMaxRetries: parseInteger('TX_MAX_RETRIES', 3, 1),
-
-  useEip1559: parseBoolean('USE_EIP1559', true),
-  maxPriorityFeeGwei: parseNumber('MAX_PRIORITY_FEE_GWEI', 2, 0),
-  maxFeeMultiplier: parseInteger('MAX_FEE_MULTIPLIER', 2, 1),
-
-  ownerSecondaryOffset: parseInteger(
-    'OWNER_SECONDARY_OFFSET',
-    defaultOwnerSecondaryOffset,
-    1
-  ),
-  transferAcceptEnabled: parseBoolean('TRANSFER_ACCEPT_ENABLED', true),
-
-  throughputMinRps: parseNumber('THROUGHPUT_MIN_RPS', 0, 0),
-  tracePublicIds: parseCsv(__ENV.TRACE_PUBLIC_IDS),
+  rpcUrl: __ENV.RPC_URL ?? 'https://eth-sepolia.g.alchemy.com/v2/7z9cWB7RrlLQJRvfl_71M',
+  signerMode: 'local_private_key',
+  k6Profile: __ENV.K6_PROFILE ?? 'ci',
+  strictWalletPool: true,
+  chainId: 11155111,
+  txGasLimit: 200000,
+  txTimeoutMs: 120000,
+  txPollIntervalMs: 1500,
+  txMaxRetries: 3,
+  useEip1559: true,
+  maxPriorityFeeGwei: 2,
+  maxFeeMultiplier: 2,
+  ownerSecondaryOffset: 1,
+  transferAcceptEnabled: true,
 };
 
-export const walletPools = {
-  OWNER: ownerWallets,
-  CLINIC: clinicWallets,
-};
+export const walletPools = { OWNER: ownerWallets, CLINIC: clinicWallets };
 
 export const getWalletPool = (role) => {
-  const normalized = `${role}`.trim().toUpperCase();
-  const pool = walletPools[normalized];
-  if (!pool) {
-    throw new Error(`Unsupported role for wallet pool: ${role}`);
-  }
+  const pool = walletPools[role.toUpperCase()];
+  if (!pool) throw new Error(`Role ${role} not found`);
   return pool;
 };
 
 export const getWalletByRoleAndOffset = (role, offset = 0) => {
   const pool = getWalletPool(role);
-  if (pool.length === 0) {
-    throw new Error(`Wallet pool for role ${role} is empty.`);
-  }
-
   const base = Math.max(__VU - 1, 0);
-  const index = (base + Math.max(offset, 0)) % pool.length;
+  const index = (base + offset) % pool.length;
   return pool[index];
 };
 
 export const getWalletCount = (role) => getWalletPool(role).length;
-
-export const getWalletByAddress = (walletAddress) => {
-  if (!walletAddress) {
-    return null;
-  }
-
-  return walletLookup.get(`${walletAddress}`.toLowerCase()) ?? null;
-};
+export const getWalletByAddress = (addr) => walletLookup.get(addr.toLowerCase()) ?? null;

@@ -1,15 +1,162 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
 generator client {
-  provider = "prisma-client-js"
+  provider        = "prisma-client-js"
+  previewFeatures = ["partialIndexes"]
 }
 
 datasource db {
   provider = "postgresql"
+}
+
+model User {
+  id              Int                 @id @default(autoincrement())
+  name            String
+  email           String              @unique
+  passwordHash    String              @map("password_hash")
+  role            UserRole            @default(OWNER)
+  walletAddress   String?             @unique(where: raw("(wallet_address IS NOT NULL)")) @map("wallet_address")
+  corrections     CorrectionRequest[] @relation("OwnerCorrections")
+  reviews         CorrectionRequest[] @relation("ReviewerCorrections")
+  clinicRecords   MedicalRecord[]     @relation("ClinicRecords")
+  verifiedRecords MedicalRecord[]     @relation("VerifierRecords")
+  notifications   Notification[]
+  ownedFrom       OwnershipHistory[]  @relation("FromOwner")
+  ownedTo         OwnershipHistory[]  @relation("ToOwner")
+  pets            Pet[]               @relation("PetOwner")
+
+  @@map("users")
+}
+
+model Pet {
+  id               Int                 @id @default(autoincrement())
+  publicId         String              @unique @map("public_id")
+  name             String
+  species          String
+  breed            String
+  birthDate        DateTime            @map("birth_date")
+  age              Int?
+  color            String
+  physicalMark     String              @map("physical_mark")
+  status           PetStatus           @default(REGISTERED)
+  ownerId          Int                 @map("owner_id")
+  createdAt        DateTime            @default(now()) @map("created_at")
+  updatedAt        DateTime            @default(now()) @updatedAt @map("updated_at")
+  onChainPetId     Int?                @map("on_chain_pet_id")
+  dataHash         String?             @map("data_hash")
+  txHash           String?             @map("tx_hash")
+  blockNumber      Int?                @map("block_number")
+  blockTimestamp   DateTime?           @map("block_timestamp") @db.Timestamp(6)
+  corrections      CorrectionRequest[]
+  medicalRecords   MedicalRecord[]
+  ownershipHistory OwnershipHistory[]
+  owner            User                @relation("PetOwner", fields: [ownerId], references: [id])
+
+  @@map("pets")
+}
+
+model MedicalRecord {
+  id              Int                 @id @default(autoincrement())
+  petId           Int                 @map("pet_id")
+  clinicId        Int                 @map("clinic_id")
+  vaccineType     String              @map("vaccine_type")
+  batchNumber     String              @map("batch_number")
+  givenAt         DateTime            @map("given_at")
+  notes           String?
+  evidenceUrl     String?             @map("evidence_url")
+  status          MedicalRecordStatus @default(PENDING)
+  verifiedById    Int?                @map("verified_by")
+  verifiedAt      DateTime?           @map("verified_at")
+  createdAt       DateTime            @default(now()) @map("created_at")
+  onChainRecordId Int?                @map("on_chain_record_id")
+  dataHash        String?             @map("data_hash")
+  txHash          String?             @map("tx_hash")
+  blockNumber     Int?                @map("block_number")
+  blockTimestamp  DateTime?           @map("block_timestamp") @db.Timestamp(6)
+  clinic          User                @relation("ClinicRecords", fields: [clinicId], references: [id])
+  pet             Pet                 @relation(fields: [petId], references: [id])
+  verifiedBy      User?               @relation("VerifierRecords", fields: [verifiedById], references: [id])
+
+  @@map("medical_records")
+}
+
+model OwnershipHistory {
+  id             Int       @id @default(autoincrement())
+  petId          Int       @map("pet_id")
+  fromOwnerId    Int       @map("from_owner_id")
+  toOwnerId      Int       @map("to_owner_id")
+  transferredAt  DateTime? @map("transferred_at")
+  onChainPetId   Int?      @map("on_chain_pet_id")
+  txHash         String?   @map("tx_hash")
+  blockNumber    Int?      @map("block_number")
+  blockTimestamp DateTime? @map("block_timestamp") @db.Timestamp(6)
+  createdAt      DateTime? @default(now()) @map("created_at") @db.Timestamp(6)
+  fromOwner      User      @relation("FromOwner", fields: [fromOwnerId], references: [id])
+  pet            Pet       @relation(fields: [petId], references: [id])
+  toOwner        User      @relation("ToOwner", fields: [toOwnerId], references: [id])
+
+  @@map("ownership_history")
+}
+
+model WalletChallenge {
+  walletAddress String   @id @map("wallet_address")
+  message       String
+  expiresAt     DateTime @map("expires_at") @db.Timestamp(6)
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt     DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  @@index([expiresAt])
+  @@map("wallet_challenges")
+}
+
+model VaccineReminderLog {
+  id          Int      @id @default(autoincrement())
+  petId       Int      @map("pet_id")
+  ownerId     Int      @map("owner_id")
+  vaccineType String   @default("unknown") @map("vaccine_type")
+  dueDate     DateTime @map("due_date") @db.Date
+  sentAt      DateTime @default(now()) @map("sent_at") @db.Timestamp(6)
+
+  @@unique([petId, vaccineType, dueDate])
+  @@map("vaccine_reminder_logs")
+}
+
+model CorrectionRequest {
+  id             Int              @id @default(autoincrement())
+  petId          Int              @map("pet_id")
+  ownerId        Int              @map("owner_id")
+  fieldName      String           @map("field_name")
+  oldValue       String           @map("old_value")
+  newValue       String           @map("new_value")
+  status         CorrectionStatus @default(PENDING)
+  reviewedById   Int?             @map("reviewed_by")
+  reviewedAt     DateTime?        @map("reviewed_at")
+  reason         String?
+  createdAt      DateTime         @default(now()) @map("created_at")
+  dataHash       String?          @map("data_hash")
+  txHash         String?          @map("tx_hash")
+  blockNumber    Int?             @map("block_number")
+  blockTimestamp DateTime?        @map("block_timestamp") @db.Timestamp(6)
+  owner          User             @relation("OwnerCorrections", fields: [ownerId], references: [id])
+  pet            Pet              @relation(fields: [petId], references: [id])
+  reviewedBy     User?            @relation("ReviewerCorrections", fields: [reviewedById], references: [id])
+
+  @@map("correction_requests")
+}
+
+model Notification {
+  id        Int                   @id @default(autoincrement())
+  userId    Int                   @map("user_id")
+  title     String
+  message   String
+  eventType NotificationEventType @default(GENERAL) @map("event_type")
+  petId     Int?                  @map("pet_id")
+  sourceId  String?               @map("source_id")
+  actionUrl String?               @map("action_url")
+  isRead    Boolean               @default(false) @map("is_read")
+  readAt    DateTime?             @map("read_at")
+  createdAt DateTime              @default(now()) @map("created_at")
+  user      User                  @relation(fields: [userId], references: [id])
+
+  @@map("notifications")
 }
 
 enum UserRole {
@@ -47,156 +194,4 @@ enum NotificationEventType {
   TRANSFER_ACCEPTED
   TRANSFER_REJECTED
   VACCINE_REMINDER
-}
-
-model User {
-  id            Int                 @id @default(autoincrement())
-  name          String
-  email         String              @unique
-  passwordHash  String              @map("password_hash")
-  walletAddress String?             @unique @map("wallet_address")
-  role          UserRole            @default(OWNER)
-  pets          Pet[]               @relation("PetOwner")
-  clinicRecords MedicalRecord[]     @relation("ClinicRecords")
-  notifications Notification[]
-  corrections   CorrectionRequest[] @relation("OwnerCorrections")
-  reviews       CorrectionRequest[] @relation("ReviewerCorrections")
-  ownedFrom     OwnershipHistory[]  @relation("FromOwner")
-  ownedTo       OwnershipHistory[]  @relation("ToOwner")
-  verifiedRecords MedicalRecord[]   @relation("VerifierRecords")
-
-  @@map("users")
-}
-
-model Pet {
-  id            Int                 @id @default(autoincrement())
-  publicId      String              @unique @map("public_id")
-  onChainPetId  Int?                @map("on_chain_pet_id")
-  dataHash      String              @map("data_hash")
-  txHash        String              @map("tx_hash")
-  blockNumber   Int?                @map("block_number")
-  blockTimestamp DateTime?          @map("block_timestamp")
-  name          String
-  species       String
-  breed         String
-  birthDate     DateTime            @map("birth_date")
-  age           Int?
-  color         String
-  physicalMark  String              @map("physical_mark")
-  status        PetStatus           @default(REGISTERED)
-  ownerId       Int                 @map("owner_id")
-  owner         User                @relation("PetOwner", fields: [ownerId], references: [id])
-  medicalRecords MedicalRecord[]
-  ownershipHistory OwnershipHistory[]
-  corrections   CorrectionRequest[]
-  createdAt     DateTime            @default(now()) @map("created_at")
-  updatedAt     DateTime            @updatedAt @map("updated_at")
-
-  @@map("pets")
-}
-
-model MedicalRecord {
-  id           Int                 @id @default(autoincrement())
-  petId        Int                 @map("pet_id")
-  pet          Pet                 @relation(fields: [petId], references: [id])
-  clinicId     Int                 @map("clinic_id")
-  clinic       User                @relation("ClinicRecords", fields: [clinicId], references: [id])
-  onChainRecordId Int?             @map("on_chain_record_id")
-  dataHash     String              @map("data_hash")
-  txHash       String              @map("tx_hash")
-  blockNumber  Int?                @map("block_number")
-  blockTimestamp DateTime?         @map("block_timestamp")
-  vaccineType  String              @map("vaccine_type")
-  batchNumber  String              @map("batch_number")
-  givenAt      DateTime            @map("given_at")
-  notes        String?
-  evidenceUrl  String?             @map("evidence_url")
-  status       MedicalRecordStatus @default(PENDING)
-  verifiedById Int?                @map("verified_by")
-  verifiedBy   User?               @relation("VerifierRecords", fields: [verifiedById], references: [id])
-  verifiedAt   DateTime?           @map("verified_at")
-  createdAt    DateTime            @default(now()) @map("created_at")
-
-  @@map("medical_records")
-}
-
-model OwnershipHistory {
-  id            Int       @id @default(autoincrement())
-  petId         Int       @map("pet_id")
-  pet           Pet       @relation(fields: [petId], references: [id])
-  fromOwnerId   Int       @map("from_owner_id")
-  fromOwner     User      @relation("FromOwner", fields: [fromOwnerId], references: [id])
-  toOwnerId     Int       @map("to_owner_id")
-  toOwner       User      @relation("ToOwner", fields: [toOwnerId], references: [id])
-  onChainPetId  Int?      @map("on_chain_pet_id")
-  txHash        String?   @map("tx_hash")
-  blockNumber   Int?      @map("block_number")
-  blockTimestamp DateTime? @map("block_timestamp")
-  createdAt     DateTime  @default(now()) @map("created_at")
-  transferredAt DateTime? @map("transferred_at")
-
-  @@map("ownership_history")
-}
-
-model WalletChallenge {
-  walletAddress String   @id @map("wallet_address")
-  message       String
-  expiresAt     DateTime @map("expires_at")
-  createdAt     DateTime @default(now()) @map("created_at")
-  updatedAt     DateTime @updatedAt @map("updated_at")
-
-  @@index([expiresAt], map: "wallet_challenges_expires_at_idx")
-  @@map("wallet_challenges")
-}
-
-model VaccineReminderLog {
-  id       Int      @id @default(autoincrement())
-  petId    Int      @map("pet_id")
-  ownerId  Int      @map("owner_id")
-  vaccineType String @map("vaccine_type")
-  dueDate  DateTime @db.Date @map("due_date")
-  sentAt   DateTime @default(now()) @map("sent_at")
-
-  @@unique([petId, vaccineType, dueDate], map: "vaccine_reminder_logs_pet_id_vaccine_type_due_date_key")
-  @@map("vaccine_reminder_logs")
-}
-
-model CorrectionRequest {
-  id          Int              @id @default(autoincrement())
-  petId       Int              @map("pet_id")
-  pet         Pet              @relation(fields: [petId], references: [id])
-  ownerId     Int              @map("owner_id")
-  owner       User             @relation("OwnerCorrections", fields: [ownerId], references: [id])
-  dataHash    String           @map("data_hash")
-  txHash      String?          @map("tx_hash")
-  blockNumber Int?             @map("block_number")
-  blockTimestamp DateTime?     @map("block_timestamp")
-  fieldName   String           @map("field_name")
-  oldValue    String           @map("old_value")
-  newValue    String           @map("new_value")
-  status      CorrectionStatus @default(PENDING)
-  reviewedById Int?            @map("reviewed_by")
-  reviewedBy  User?            @relation("ReviewerCorrections", fields: [reviewedById], references: [id])
-  reviewedAt  DateTime?        @map("reviewed_at")
-  reason      String?
-  createdAt   DateTime         @default(now()) @map("created_at")
-
-  @@map("correction_requests")
-}
-
-model Notification {
-  id        Int      @id @default(autoincrement())
-  userId    Int      @map("user_id")
-  user      User     @relation(fields: [userId], references: [id])
-  title     String
-  message   String
-  eventType NotificationEventType @default(GENERAL) @map("event_type")
-  petId     Int?     @map("pet_id")
-  sourceId  String?  @map("source_id")
-  actionUrl String?  @map("action_url")
-  isRead    Boolean  @default(false) @map("is_read")
-  readAt    DateTime? @map("read_at")
-  createdAt DateTime @default(now()) @map("created_at")
-
-  @@map("notifications")
 }

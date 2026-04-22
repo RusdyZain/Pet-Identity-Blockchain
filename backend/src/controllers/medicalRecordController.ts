@@ -10,6 +10,7 @@ import { MedicalRecordStatus } from "../types/enums";
 import {
   confirmAddMedicalRecordTx,
   confirmVerifyMedicalRecordTx,
+  isClinic,
   prepareAddMedicalRecordTx,
   prepareVerifyMedicalRecordTx,
 } from "../blockchain/petIdentityClient";
@@ -343,6 +344,20 @@ export const verifyMedicalRecordController = async (
         blockTimestamp: metadata.blockTimestamp.toISOString(),
       },
     });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const checkIsClinicController = async (req: Request, res: Response, next: NextFunction) => {
+  console.log("Checking if user is clinic...");
+  try {
+    if (!req.user) throw new AppError("Unauthorized", 401);
+    const walletAddress = req.user.walletAddress;
+    await ensureUserWalletAddress(req.user.id, walletAddress);
+    const isClinicCheck = await isClinic(walletAddress);
+    console.log("isClinicCheck:", isClinicCheck);
+    res.json({ isClinic: isClinicCheck });
   } catch (error) {
     next(error);
   }

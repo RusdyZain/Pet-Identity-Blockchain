@@ -9,7 +9,7 @@ import { hashPassword } from "../utils/password";
 import { signJwt } from "../utils/jwt";
 import { getWalletChallengeStore } from "./walletChallengeStore";
 
-const SELF_REGISTER_ROLES: UserRole[] = [UserRole.OWNER, UserRole.CLINIC];
+const SELF_REGISTER_ROLES: UserRole[] = [UserRole.OWNER];
 const WALLET_CHALLENGE_TTL_MS = ENV.walletChallengeTtlMs;
 
 const normalizeWalletAddress = (walletAddress: string): string => {
@@ -129,7 +129,7 @@ export const registerUser = async (params: {
   signature: string;
 }) => {
   if (!SELF_REGISTER_ROLES.includes(params.role)) {
-    throw new AppError("Only OWNER or CLINIC can self-register", 400);
+    throw new AppError("Only OWNER can self-register", 400);
   }
 
   const name = params.name?.trim();

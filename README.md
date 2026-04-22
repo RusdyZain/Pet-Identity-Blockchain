@@ -75,7 +75,8 @@ flowchart TB
     Public[PUBLIK] --> UC11[Trace by PublicId]
 ```
 
-### 4.3 Sequence Diagram Wallet Authentication
+### 4.3 Sequence Diagram
+### 4.3.1 Sequence Diagram Wallet Authentication
 ```mermaid
 sequenceDiagram
     participant U as User
@@ -101,29 +102,175 @@ sequenceDiagram
       BE-->>FE: JWT + user
     end
 ```
-
-### 4.4 Sequence Diagram Aksi On-Chain (Contoh Registrasi Pet)
+### 4.3.2 Sequence Diagram Admin
 ```mermaid
 sequenceDiagram
+    participant A as Admin (Contract Owner)
     participant FE as Frontend
     participant MM as MetaMask
+    participant SC as Smart Contract
+
+    A->>FE: Input Alamat Wallet Klinik Baru
+    FE->>MM: Request Sign (addClinic)
+    MM->>SC: call addClinic(newClinicAddress)
+    
+    Note over SC: Cek: msg.sender == contractOwner?
+    
+    alt Jika Pengirim adalah Owner
+        SC->>SC: clinics[newClinicAddress] = true
+        SC-->>FE: emit ClinicAccessUpdated(Success)
+        FE-->>A: Notifikasi: Klinik Berhasil Terdaftar
+    else Jika Pengirim BUKAN Owner
+        SC-->>FE: Revert: "Not contract owner"
+        FE-->>A: Notifikasi: Transaksi Gagal
+    end
+```
+
+### 4.3.3 Sequence Diagram Owner
+```mermaid
+sequenceDiagram
+    participant O as Pet Owner
+    participant FE as Frontend
+    participant BE as Backend (IPFS/DB)
+    participant MM as MetaMask
+    participant SC as Smart Contract
+
+    O->>FE: Input Data Hewan (Nama, Ras, Foto)
+    FE->>BE: Upload Data
+    BE-->>FE: Return dataHash (Keccak256)
+    FE->>MM: Request Sign Transaction
+    MM->>SC: registerPet(dataHash)
+    SC->>SC: Generate petId & Store Pet Struct
+    SC-->>FE: Event: PetRegistered(petId)
+    FE-->>O: Registrasi Selesai (ID Muncul)
+```
+### 4.3.4 Sequence Diagram Clinic
+```mermaid
+sequenceDiagram
+    participant C as Clinic Wallet
+    participant FE as Frontend
+    participant BE as Backend
+    participant SC as Smart Contract
+
+    C->>FE: Cari Pet ID & Input Catatan Medis
+    FE->>BE: Generate dataHash Catatan
+    FE->>SC: addMedicalRecord(petId, dataHash)
+    Note over SC: Modifier: onlyClinic
+    SC->>SC: Push to medicalRecords[petId] (Status: PENDING)
+    SC-->>FE: Event: MedicalRecordAdded(recordId)
+    
+    Note over C, SC: Proses Verifikasi (Opsional)
+    
+    C->>FE: Klik Verifikasi Catatan
+    FE->>SC: verifyMedicalRecord(recordId, VERIFIED)
+    SC->>SC: Update Status & verifiedBy
+    SC-->>FE: Event: MedicalRecordReviewed
+    FE-->>C: Catatan Medis Terverifikasi
+```
+
+
+### 4.3.5 Sequence Diagram Public Verifier
+```mermaid
+sequenceDiagram
+    participant P as Public Verifier (Guest)
+    participant FE as Frontend
     participant BE as Backend
     participant RPC as RPC Node
     participant DB as PostgreSQL
 
-    FE->>BE: POST /pets/prepare-registration
-    BE-->>FE: txRequest(to,data) + dataHash + publicId
-    FE->>MM: eth_sendTransaction(txRequest)
-    MM->>RPC: submit tx
-    RPC-->>FE: txHash
-    FE->>FE: wait receipt mined
-    FE->>BE: POST /pets (payload + txHash)
-    BE->>RPC: getTransactionReceipt(txHash)
-    BE->>BE: parse PetRegistered event + validate sender/dataHash
-    BE->>DB: save pet + tx metadata
-    BE-->>FE: response success
+    P->>FE: Input ID Hewan atau Scan QR (dataHash)
+    FE->>BE: GET /pets/verify/:id
+    
+    par Ambil Data Blockchain
+        BE->>RPC: getPet(petId) / getMedicalRecords(petId)
+        RPC-->>BE: dataHash, ownerAddr, verifiedStatus, clinicAddr
+    and Ambil Data Backend
+        BE->>DB: find pet metadata (Nama, Foto, Deskripsi)
+        DB-->>BE: pet metadata + medical description
+    end
+
+    BE->>BE: Reconstruct & Compare Data
+    Note over BE: Memastikan data di DB cocok dengan dataHash di Blockchain
+
+    BE-->>FE: Response: Verified Pet Data + History
+    FE-->>P: Tampilkan Profil Hewan & Centang Biru (Blockchain Verified)
 ```
 
+### 4.4 Sequence Diagram Aksi On-Chain 
+### 4.4.1 Sequence Diagram Aksi On-Chain Pendaftaran Hewan
+```mermaid
+sequenceDiagram
+    participant O as Pet Owner
+    participant FE as Frontend
+    participant BE as Backend
+    participant MM as MetaMask
+    participant RPC as RPC Node
+    participant DB as PostgreSQL
+
+    O->>FE: Isi Form Identitas Hewan
+    FE->>BE: POST /pets/prepare-registration
+    BE->>BE: Generate dataHash (Keccak256)
+    BE-->>FE: txRequest (registerPet) + dataHash
+    FE->>MM: eth_sendTransaction
+    MM->>RPC: submit tx
+    RPC-->>FE: txHash
+    FE->>FE: Wait confirmation
+    FE->>BE: POST /pets/confirm (payload + txHash)
+    BE->>RPC: eth_getTransactionReceipt
+    BE->>BE: Parse PetRegistered event (get petId)
+    BE->>DB: Save Pet Profile + petId + txHash
+    BE-->>FE: Response: Hewan Berhasil Terdaftar
+```
+### 4.4.2 Sequence Diagram Aksi On-Chain Pendaftaran Klinik
+```mermaid
+sequenceDiagram
+    participant A as Admin (Contract Owner)
+    participant FE as Frontend
+    participant BE as Backend
+    participant MM as MetaMask
+    participant RPC as RPC Node
+    participant DB as PostgreSQL
+
+    A->>FE: Input Alamat Wallet Klinik
+    FE->>BE: POST /clinics/prepare-access
+    BE-->>FE: txRequest (to: addClinic, data: encodedAddr)
+    FE->>MM: eth_sendTransaction
+    MM->>RPC: submit tx
+    RPC-->>FE: txHash
+    FE->>FE: Wait confirmation
+    FE->>BE: POST /clinics/verify (txHash)
+    BE->>RPC: eth_getTransactionReceipt
+    BE->>BE: Validate ClinicAccessUpdated event
+    BE->>DB: Update clinic status to 'VERIFIED'
+    BE-->>FE: Response: Klinik Berhasil Aktif
+```
+### 4.4.3 Sequence Diagram Aksi On-Chain Penambahan Catatan Medis
+```mermaid
+sequenceDiagram
+    participant C as Clinic Wallet
+    participant FE as Frontend
+    participant BE as Backend
+    participant MM as MetaMask
+    participant RPC as RPC Node
+    participant DB as PostgreSQL
+
+    C->>FE: Pilih Pet + Input Rekam Medis (Vaksin, dsb)
+    FE->>BE: POST /medical/prepare-record
+    BE->>BE: Generate medicalDataHash
+    BE-->>FE: txRequest (addMedicalRecord)
+    FE->>MM: eth_sendTransaction
+    MM->>RPC: submit tx
+    
+    Note over RPC, MM: Jika wallet belum terdaftar di SC, RPC akan REVERT 'Caller is not clinic'
+    
+    RPC-->>FE: txHash
+    FE->>FE: Wait confirmation
+    FE->>BE: POST /medical/confirm (txHash)
+    BE->>RPC: eth_getTransactionReceipt
+    BE->>BE: Parse MedicalRecordAdded event (get recordId)
+    BE->>DB: Save Medical Record + Status: PENDING
+    BE-->>FE: Response: Catatan Medis Terunggah
+```
 ### 4.5 ERD Ringkas
 ```mermaid
 erDiagram

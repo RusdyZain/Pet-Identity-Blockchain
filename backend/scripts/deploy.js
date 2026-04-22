@@ -4,7 +4,13 @@ const { ethers, network } = require('hardhat');
 
 // Script deploy kontrak dan simpan info hasil deploy ke file.
 async function main() {
-  const [deployer] = await ethers.getSigners();
+  const signers = await ethers.getSigners();
+  if (!signers || signers.length === 0) {
+    throw new Error(
+      'No deployment signer found. Make sure DEPLOYER_PRIVATE_KEY is set for the configured network and the network provider is reachable.'
+    );
+  }
+  const [deployer] = signers;
   const networkInfo = await ethers.provider.getNetwork();
   console.log('Deploying with account:', deployer.address);
 
