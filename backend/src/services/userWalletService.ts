@@ -6,6 +6,14 @@ export const ensureUserWalletAddress = async (
   userId: number,
   walletAddress: string
 ) => {
+  const normalizedWalletAddress = `${walletAddress ?? ""}`.trim();
+  if (!normalizedWalletAddress) {
+    throw new AppError(
+      "Wallet address tidak ditemukan di sesi login. Silakan login ulang.",
+      401
+    );
+  }
+
   const userRepo = AppDataSource.getRepository(User);
   const user = await userRepo.findOne({
     where: { id: userId },
@@ -17,11 +25,13 @@ export const ensureUserWalletAddress = async (
   }
 
   if (user.walletAddress) {
-    if (user.walletAddress.toLowerCase() !== walletAddress.toLowerCase()) {
+    if (
+      user.walletAddress.toLowerCase() !== normalizedWalletAddress.toLowerCase()
+    ) {
       throw new AppError("Wallet address mismatch", 400);
     }
     return;
   }
 
-  await userRepo.update({ id: userId }, { walletAddress });
+  await userRepo.update({ id: userId }, { walletAddress: normalizedWalletAddress });
 };

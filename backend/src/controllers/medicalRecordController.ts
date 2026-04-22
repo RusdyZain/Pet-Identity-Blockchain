@@ -186,15 +186,19 @@ export const createMedicalRecordController = async (
           onChainRecordId: onChainRecordId.toString(),
         },
       });
-    } catch (blockchainError: any) {
+    } catch (blockchainError: unknown) {
+      if (blockchainError instanceof AppError) {
+        return res
+          .status(blockchainError.statusCode)
+          .json({ message: blockchainError.message });
+      }
+
       console.error(
         "Failed to add medical record on blockchain",
         blockchainError
       );
       return res.status(500).json({
-        error:
-          blockchainError?.message ??
-          "Failed to sync medical record to blockchain",
+        message: "Failed to sync medical record to blockchain",
       });
     }
   } catch (error) {
