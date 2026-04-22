@@ -1,4 +1,4 @@
-import { MedicalRecordStatus, UserRole } from "../types/enums";
+import { MedicalRecordStatus, NotificationEventType, UserRole } from "../types/enums";
 import { AppDataSource } from "../config/dataSource";
 import { MedicalRecord } from "../entities/MedicalRecord";
 import { Pet } from "../entities/Pet";
@@ -37,7 +37,7 @@ export const createMedicalRecord = async (params: {
     throw new AppError("Pet not found", 404);
   }
 
-  return recordRepo.save(
+  const created = await recordRepo.save(
     recordRepo.create({
       petId: params.petId,
       clinicId: params.clinicId,
@@ -54,6 +54,18 @@ export const createMedicalRecord = async (params: {
       status: MedicalRecordStatus.PENDING,
     })
   );
+
+  await createNotification({
+    userId: pet.ownerId,
+    title: "Catatan medis baru menunggu review",
+    message: `Klinik menambahkan catatan vaksin ${params.vaccineType} untuk ${pet.name} dan saat ini berstatus PENDING.`,
+    eventType: NotificationEventType.MEDICAL_RECORD_PENDING,
+    petId: pet.id,
+    sourceId: created.id,
+    actionUrl: `/owner/pets/${pet.id}/medical-records`,
+  });
+
+  return created;
 };
 
 // List catatan medis untuk satu hewan, dengan validasi akses.
@@ -148,6 +160,10 @@ export const verifyMedicalRecord = async (
     userId: record.pet.ownerId,
     title: "Status catatan vaksin berubah",
     message: `Catatan ${record.vaccineType} untuk ${record.pet.name} ${statusText}.`,
+    eventType: NotificationEventType.MEDICAL_RECORD_REVIEWED,
+    petId: record.petId,
+    sourceId: record.id,
+    actionUrl: `/owner/pets/${record.petId}/medical-records`,
   });
 
   return updated;

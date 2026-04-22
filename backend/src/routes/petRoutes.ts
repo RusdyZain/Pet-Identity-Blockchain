@@ -2,6 +2,7 @@ import { Router } from "express";
 import { UserRole } from "../types/enums";
 import {
   acceptTransferController,
+  rejectTransferController,
   createCorrectionController,
   createPetController,
   prepareTransferController,
@@ -77,6 +78,13 @@ router.post(
   authenticate(),
   authorize([UserRole.OWNER]),
   acceptTransferController
+);
+
+router.post(
+  "/:petId/transfer/reject",
+  authenticate(),
+  authorize([UserRole.OWNER]),
+  rejectTransferController
 );
 
 router.post(

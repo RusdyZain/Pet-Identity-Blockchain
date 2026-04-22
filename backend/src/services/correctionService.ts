@@ -1,4 +1,4 @@
-import { CorrectionStatus } from "../types/enums";
+import { CorrectionStatus, NotificationEventType } from "../types/enums";
 import { AppDataSource } from "../config/dataSource";
 import { CorrectionRequest } from "../entities/CorrectionRequest";
 import { Pet } from "../entities/Pet";
@@ -244,6 +244,10 @@ export const reviewCorrection = async (params: {
     userId: correction.ownerId,
     title: "Permintaan koreksi diperbarui",
     message: `Koreksi ${correction.fieldName} untuk ${correction.pet!.name} ${statusText}.`,
+    eventType: NotificationEventType.CORRECTION_REVIEWED,
+    petId: correction.petId,
+    sourceId: correction.id,
+    actionUrl: `/owner/pets/${correction.petId}`,
   });
 
   return updatedCorrection;

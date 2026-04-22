@@ -37,6 +37,18 @@ enum CorrectionStatus {
   REJECTED
 }
 
+enum NotificationEventType {
+  GENERAL
+  MEDICAL_RECORD_PENDING
+  MEDICAL_RECORD_REVIEWED
+  CORRECTION_SUBMITTED
+  CORRECTION_REVIEWED
+  TRANSFER_INITIATED
+  TRANSFER_ACCEPTED
+  TRANSFER_REJECTED
+  VACCINE_REMINDER
+}
+
 model User {
   id            Int                 @id @default(autoincrement())
   name          String
@@ -178,7 +190,12 @@ model Notification {
   user      User     @relation(fields: [userId], references: [id])
   title     String
   message   String
+  eventType NotificationEventType @default(GENERAL) @map("event_type")
+  petId     Int?     @map("pet_id")
+  sourceId  String?  @map("source_id")
+  actionUrl String?  @map("action_url")
   isRead    Boolean  @default(false) @map("is_read")
+  readAt    DateTime? @map("read_at")
   createdAt DateTime @default(now()) @map("created_at")
 
   @@map("notifications")

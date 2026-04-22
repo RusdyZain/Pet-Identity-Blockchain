@@ -114,8 +114,34 @@ export interface Notification {
   id: number;
   title: string;
   message: string;
+  eventType:
+    | 'GENERAL'
+    | 'MEDICAL_RECORD_PENDING'
+    | 'MEDICAL_RECORD_REVIEWED'
+    | 'CORRECTION_SUBMITTED'
+    | 'CORRECTION_REVIEWED'
+    | 'TRANSFER_INITIATED'
+    | 'TRANSFER_ACCEPTED'
+    | 'TRANSFER_REJECTED'
+    | 'VACCINE_REMINDER';
+  petId?: number | null;
+  sourceId?: string | null;
+  actionUrl?: string | null;
   isRead: boolean;
+  readAt?: string | null;
   createdAt: string;
+}
+
+export interface NotificationListMeta {
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+}
+
+export interface NotificationListResponse {
+  items: Notification[];
+  meta: NotificationListMeta;
 }
 
 // Data trace publik untuk verifikasi identitas hewan.

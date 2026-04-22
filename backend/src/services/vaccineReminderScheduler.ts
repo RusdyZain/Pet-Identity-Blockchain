@@ -2,7 +2,11 @@ import { ENV } from "../config/env";
 import { AppDataSource } from "../config/dataSource";
 import { MedicalRecord } from "../entities/MedicalRecord";
 import { VaccineReminderLog } from "../entities/VaccineReminderLog";
-import { MedicalRecordStatus, PetStatus } from "../types/enums";
+import {
+  MedicalRecordStatus,
+  NotificationEventType,
+  PetStatus,
+} from "../types/enums";
 import { createNotification } from "./notificationService";
 
 export type LatestVerifiedVaccineRecord = {
@@ -33,7 +37,15 @@ type ReminderJobDeps = {
     vaccineType: string;
     dueDate: Date;
   }) => Promise<boolean>;
-  notify: (params: { userId: number; title: string; message: string }) => Promise<unknown>;
+  notify: (params: {
+    userId: number;
+    title: string;
+    message: string;
+    eventType?: NotificationEventType;
+    petId?: number | null;
+    sourceId?: string | number | null;
+    actionUrl?: string | null;
+  }) => Promise<unknown>;
 };
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -204,10 +216,17 @@ const tryCreateReminderLog = async (params: {
       vaccineType: params.vaccineType,
       dueDate: params.dueDate,
     })
+    .returning(["id"])
     .orIgnore()
     .execute();
 
-  return (result.raw?.rowCount ?? result.identifiers?.length ?? 0) > 0;
+  if (Array.isArray(result.raw)) {
+    return result.raw.length > 0;
+  }
+  if (typeof result.raw?.rowCount === "number") {
+    return result.raw.rowCount > 0;
+  }
+  return (result.identifiers?.length ?? 0) > 0;
 };
 
 export const runVaccineReminderJobCore = async (
@@ -235,6 +254,10 @@ export const runVaccineReminderJobCore = async (
       userId: reminder.ownerId,
       title: "Reminder vaksin otomatis",
       message: getReminderMessage(reminder),
+      eventType: NotificationEventType.VACCINE_REMINDER,
+      petId: reminder.petId,
+      sourceId: `${reminder.petId}:${normalizeVaccineType(reminder.vaccineType)}:${toIsoDate(reminder.dueDate)}`,
+      actionUrl: `/owner/pets/${reminder.petId}/medical-records`,
     });
     notificationsSent += 1;
   }

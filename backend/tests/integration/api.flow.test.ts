@@ -3,8 +3,16 @@ import type { Express } from "express";
 import request from "supertest";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { AppDataSource } from "../../src/config/dataSource";
+import { ENV } from "../../src/config/env";
 import { ensureSchema } from "../../src/config/ensureSchema";
-import { MedicalRecordStatus, UserRole } from "../../src/types/enums";
+import { OwnershipHistory } from "../../src/entities/OwnershipHistory";
+import { runVaccineReminderJob } from "../../src/services/vaccineReminderScheduler";
+import {
+  MedicalRecordStatus,
+  NotificationEventType,
+  PetStatus,
+  UserRole,
+} from "../../src/types/enums";
 import {
   createMedicalRecordFlow,
   makeIdentity,
@@ -16,9 +24,19 @@ import {
 import { resetMockPetIdentityClientState } from "./helpers/mockPetIdentityClient";
 
 let app: Express;
+const DAY_MS = 24 * 60 * 60 * 1000;
 
 const maskWalletForExpectation = (walletAddress: string) =>
   `${walletAddress.slice(0, 6)}...${walletAddress.slice(-4)}`;
+
+const listNotifications = async (
+  token: string,
+  query?: Record<string, string | number | boolean>
+) =>
+  request(app)
+    .get("/notifications")
+    .set("Authorization", `Bearer ${token}`)
+    .query(query ?? {});
 
 describe("API integration flow", () => {
   beforeAll(async () => {
@@ -221,5 +239,303 @@ describe("API integration flow", () => {
     expect(serializedTrace).not.toContain(newOwnerIdentity.email);
     expect(serializedTrace).not.toContain(oldOwnerSession.walletAddress);
     expect(serializedTrace).not.toContain(newOwnerSession.walletAddress);
+  });
+
+  it("notifies reviewers when owner submits correction request", async () => {
+    const ownerSession = await registerAndLogin(
+      app,
+      makeIdentity({ role: UserRole.OWNER, label: "owner-correction-notif" })
+    );
+    const clinicSession = await registerAndLogin(
+      app,
+      makeIdentity({ role: UserRole.CLINIC, label: "clinic-correction-notif" })
+    );
+
+    const { petId } = await registerPetFlow({
+      app,
+      ownerToken: ownerSession.token,
+      petPayload: {
+        name: "Bobby",
+        species: "Anjing",
+        breed: "Pomeranian",
+        birth_date: "2024-02-05",
+        color: "Putih",
+        physical_mark: "Leher coklat",
+      },
+      txHash: "0xpet-correction-notif-001",
+    });
+
+    const submitCorrection = await request(app)
+      .post(`/pets/${petId}/corrections`)
+      .set("Authorization", `Bearer ${ownerSession.token}`)
+      .send({
+        field_name: "color",
+        new_value: "Putih Coklat",
+        reason: "Warna dominan berubah",
+      });
+    expect(submitCorrection.status).toBe(201);
+
+    const clinicNotifications = await listNotifications(clinicSession.token, {
+      eventType: NotificationEventType.CORRECTION_SUBMITTED,
+      page: 1,
+      limit: 10,
+    });
+    expect(clinicNotifications.status).toBe(200);
+    expect(clinicNotifications.body.meta.total).toBeGreaterThan(0);
+    expect(clinicNotifications.body.items[0].eventType).toBe(
+      NotificationEventType.CORRECTION_SUBMITTED
+    );
+    expect(clinicNotifications.body.items[0].petId).toBe(petId);
+  });
+
+  it("notifies owner when medical record is created with pending status", async () => {
+    const ownerSession = await registerAndLogin(
+      app,
+      makeIdentity({ role: UserRole.OWNER, label: "owner-medical-pending" })
+    );
+    const clinicSession = await registerAndLogin(
+      app,
+      makeIdentity({ role: UserRole.CLINIC, label: "clinic-medical-pending" })
+    );
+
+    const { petId } = await registerPetFlow({
+      app,
+      ownerToken: ownerSession.token,
+      petPayload: {
+        name: "Nala",
+        species: "Kucing",
+        breed: "Persian",
+        birth_date: "2024-01-01",
+        color: "Abu",
+        physical_mark: "Hidung hitam",
+      },
+      txHash: "0xpet-medical-pending-001",
+    });
+
+    const { recordId } = await createMedicalRecordFlow({
+      app,
+      clinicToken: clinicSession.token,
+      petId,
+      payload: {
+        vaccine_type: "Rabies",
+        batch_number: "RB-2026-777",
+        given_at: "2026-03-12",
+      },
+      txHash: "0xmedical-pending-001",
+    });
+    expect(recordId).toBeGreaterThan(0);
+
+    const ownerNotifications = await listNotifications(ownerSession.token, {
+      eventType: NotificationEventType.MEDICAL_RECORD_PENDING,
+      page: 1,
+      limit: 10,
+    });
+    expect(ownerNotifications.status).toBe(200);
+    expect(ownerNotifications.body.meta.total).toBeGreaterThan(0);
+    expect(ownerNotifications.body.items[0].eventType).toBe(
+      NotificationEventType.MEDICAL_RECORD_PENDING
+    );
+    expect(ownerNotifications.body.items[0].petId).toBe(petId);
+  });
+
+  it("supports transfer reject flow and sends notification", async () => {
+    const oldOwnerSession = await registerAndLogin(
+      app,
+      makeIdentity({ role: UserRole.OWNER, label: "owner-transfer-reject-old" })
+    );
+    const newOwnerSession = await registerAndLogin(
+      app,
+      makeIdentity({ role: UserRole.OWNER, label: "owner-transfer-reject-new" })
+    );
+
+    const { petId } = await registerPetFlow({
+      app,
+      ownerToken: oldOwnerSession.token,
+      petPayload: {
+        name: "Taro",
+        species: "Anjing",
+        breed: "Shiba",
+        birth_date: "2024-01-21",
+        color: "Coklat",
+        physical_mark: "Bercak putih dada",
+      },
+      txHash: "0xpet-transfer-reject-001",
+    });
+
+    await AppDataSource.getRepository(OwnershipHistory).save({
+      petId,
+      fromOwnerId: oldOwnerSession.userId,
+      toOwnerId: newOwnerSession.userId,
+      onChainPetId: null,
+      txHash: null,
+      blockNumber: null,
+      blockTimestamp: null,
+      transferredAt: null,
+    });
+    await AppDataSource.getRepository("pets").update(
+      { id: petId },
+      { status: PetStatus.TRANSFER_PENDING }
+    );
+
+    const rejectResponse = await request(app)
+      .post(`/pets/${petId}/transfer/reject`)
+      .set("Authorization", `Bearer ${newOwnerSession.token}`)
+      .send({});
+    expect(rejectResponse.status).toBe(200);
+    expect(rejectResponse.body.status).toBe(PetStatus.REGISTERED);
+    expect(rejectResponse.body.ownerId).toBe(oldOwnerSession.userId);
+
+    const pendingHistory = await AppDataSource.getRepository(OwnershipHistory).find({
+      where: {
+        petId,
+        toOwnerId: newOwnerSession.userId,
+      },
+    });
+    expect(pendingHistory).toHaveLength(0);
+
+    const oldOwnerNotifications = await listNotifications(oldOwnerSession.token, {
+      eventType: NotificationEventType.TRANSFER_REJECTED,
+      page: 1,
+      limit: 10,
+    });
+    expect(oldOwnerNotifications.status).toBe(200);
+    expect(oldOwnerNotifications.body.meta.total).toBeGreaterThan(0);
+
+    const newOwnerNotifications = await listNotifications(newOwnerSession.token, {
+      eventType: NotificationEventType.TRANSFER_REJECTED,
+      page: 1,
+      limit: 10,
+    });
+    expect(newOwnerNotifications.status).toBe(200);
+    expect(newOwnerNotifications.body.meta.total).toBeGreaterThan(0);
+  });
+
+  it("can mark notification as read", async () => {
+    const ownerSession = await registerAndLogin(
+      app,
+      makeIdentity({ role: UserRole.OWNER, label: "owner-mark-read" })
+    );
+    const clinicSession = await registerAndLogin(
+      app,
+      makeIdentity({ role: UserRole.CLINIC, label: "clinic-mark-read" })
+    );
+
+    const { petId } = await registerPetFlow({
+      app,
+      ownerToken: ownerSession.token,
+      petPayload: {
+        name: "Mimi",
+        species: "Kucing",
+        breed: "Anggora",
+        birth_date: "2024-02-09",
+        color: "Putih",
+        physical_mark: "Ekor panjang",
+      },
+      txHash: "0xpet-mark-read-001",
+    });
+
+    await createMedicalRecordFlow({
+      app,
+      clinicToken: clinicSession.token,
+      petId,
+      payload: {
+        vaccine_type: "Rabies",
+        batch_number: "RB-2026-551",
+        given_at: "2026-02-12",
+      },
+      txHash: "0xmedical-mark-read-001",
+    });
+
+    const unreadList = await listNotifications(ownerSession.token, {
+      eventType: NotificationEventType.MEDICAL_RECORD_PENDING,
+      isRead: false,
+      page: 1,
+      limit: 10,
+    });
+    expect(unreadList.status).toBe(200);
+    expect(unreadList.body.items.length).toBeGreaterThan(0);
+    const notificationId = unreadList.body.items[0].id as number;
+
+    const markRead = await request(app)
+      .patch(`/notifications/${notificationId}/read`)
+      .set("Authorization", `Bearer ${ownerSession.token}`)
+      .send({});
+    expect(markRead.status).toBe(200);
+    expect(markRead.body.isRead).toBe(true);
+    expect(markRead.body.readAt).toBeTruthy();
+
+    const readList = await listNotifications(ownerSession.token, {
+      eventType: NotificationEventType.MEDICAL_RECORD_PENDING,
+      isRead: true,
+      page: 1,
+      limit: 10,
+    });
+    expect(readList.status).toBe(200);
+    expect(
+      readList.body.items.some((item: { id: number }) => item.id === notificationId)
+    ).toBe(true);
+  });
+
+  it("vaccine reminder scheduler remains working and deduplicated", async () => {
+    const ownerSession = await registerAndLogin(
+      app,
+      makeIdentity({ role: UserRole.OWNER, label: "owner-reminder" })
+    );
+    const clinicSession = await registerAndLogin(
+      app,
+      makeIdentity({ role: UserRole.CLINIC, label: "clinic-reminder" })
+    );
+
+    const { petId } = await registerPetFlow({
+      app,
+      ownerToken: ownerSession.token,
+      petPayload: {
+        name: "Cici",
+        species: "Anjing",
+        breed: "Corgi",
+        birth_date: "2024-03-11",
+        color: "Cream",
+        physical_mark: "Bintik hidung",
+      },
+      txHash: "0xpet-reminder-001",
+    });
+
+    const dueAfterDays = Math.max(1, Math.floor(ENV.vaccineReminderDueAfterDays));
+    const givenAtDate = new Date(Date.now() - dueAfterDays * DAY_MS);
+    const givenAt = givenAtDate.toISOString().slice(0, 10);
+
+    const { recordId } = await createMedicalRecordFlow({
+      app,
+      clinicToken: clinicSession.token,
+      petId,
+      payload: {
+        vaccine_type: "Rabies",
+        batch_number: "RB-2026-999",
+        given_at: givenAt,
+      },
+      txHash: "0xmedical-reminder-001",
+    });
+
+    await reviewMedicalRecordFlow({
+      app,
+      clinicToken: clinicSession.token,
+      recordId,
+      status: MedicalRecordStatus.VERIFIED,
+      txHash: "0xmedical-reminder-verify-001",
+    });
+
+    await runVaccineReminderJob();
+    await runVaccineReminderJob();
+
+    const reminderNotifications = await listNotifications(ownerSession.token, {
+      eventType: NotificationEventType.VACCINE_REMINDER,
+      page: 1,
+      limit: 20,
+    });
+    expect(reminderNotifications.status).toBe(200);
+    expect(reminderNotifications.body.meta.total).toBe(1);
+    expect(reminderNotifications.body.items[0].eventType).toBe(
+      NotificationEventType.VACCINE_REMINDER
+    );
   });
 });

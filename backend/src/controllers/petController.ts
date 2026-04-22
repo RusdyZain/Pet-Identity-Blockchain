@@ -6,6 +6,7 @@ import {
   getTransferContext,
   listPets,
   initiateTransfer,
+  rejectTransfer,
   acceptTransfer,
   createCorrectionRequest,
   generatePublicId,
@@ -301,6 +302,25 @@ export const acceptTransferController = async (
       throw new AppError("Invalid pet id", 400);
     }
     const pet = await acceptTransfer(petId, req.user.id);
+    res.json(pet);
+  } catch (error) {
+    next(error);
+  }
+};
+
+// Handler penolakan transfer kepemilikan oleh pemilik baru.
+export const rejectTransferController = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    if (!req.user) throw new AppError("Unauthorized", 401);
+    const petId = Number(req.params.petId);
+    if (!Number.isInteger(petId)) {
+      throw new AppError("Invalid pet id", 400);
+    }
+    const pet = await rejectTransfer(petId, req.user.id);
     res.json(pet);
   } catch (error) {
     next(error);

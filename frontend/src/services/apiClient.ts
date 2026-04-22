@@ -6,6 +6,7 @@ import type {
   CorrectionRequest,
   MedicalRecord,
   Notification,
+  NotificationListResponse,
   OwnershipHistoryDashboardResponse,
   OwnerProfile,
   Pet,
@@ -146,6 +147,10 @@ export const petApi = {
     const { data } = await api.post(`/pets/${petId}/transfer/accept`, {});
     return data;
   },
+  rejectTransfer: async (petId: string) => {
+    const { data } = await api.post(`/pets/${petId}/transfer/reject`, {});
+    return data;
+  },
 };
 
 export const uploadApi = {
@@ -267,12 +272,21 @@ export const correctionApi = {
 
 // API notifikasi untuk user.
 export const notificationApi = {
-  list: async () => {
-    const { data } = await api.get<Notification[]>('/notifications');
+  list: async (params?: {
+    page?: number;
+    limit?: number;
+    isRead?: boolean;
+    eventType?: Notification['eventType'];
+    startDate?: string;
+    endDate?: string;
+  }) => {
+    const { data } = await api.get<NotificationListResponse>('/notifications', {
+      params,
+    });
     return data;
   },
   markRead: async (id: string) => {
-    const { data } = await api.patch(`/notifications/${id}/read`, {});
+    const { data } = await api.patch<Notification>(`/notifications/${id}/read`, {});
     return data;
   },
 };

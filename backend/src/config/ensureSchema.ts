@@ -45,6 +45,15 @@ export const ensureSchema = async () => {
     'ALTER TABLE "ownership_history" ADD COLUMN IF NOT EXISTS "created_at" TIMESTAMP',
     'UPDATE "ownership_history" SET "created_at" = COALESCE("created_at", "transferred_at", NOW()) WHERE "created_at" IS NULL',
     'ALTER TABLE "ownership_history" ALTER COLUMN "created_at" SET DEFAULT NOW()',
+    'ALTER TABLE "notifications" ADD COLUMN IF NOT EXISTS "event_type" TEXT',
+    'ALTER TABLE "notifications" ADD COLUMN IF NOT EXISTS "pet_id" INTEGER',
+    'ALTER TABLE "notifications" ADD COLUMN IF NOT EXISTS "source_id" TEXT',
+    'ALTER TABLE "notifications" ADD COLUMN IF NOT EXISTS "action_url" TEXT',
+    'ALTER TABLE "notifications" ADD COLUMN IF NOT EXISTS "read_at" TIMESTAMP',
+    "UPDATE \"notifications\" SET \"event_type\" = COALESCE(NULLIF(BTRIM(\"event_type\"), ''), 'GENERAL')",
+    'ALTER TABLE "notifications" ALTER COLUMN "event_type" SET DEFAULT \'GENERAL\'',
+    'ALTER TABLE "notifications" ALTER COLUMN "event_type" SET NOT NULL',
+    'UPDATE "notifications" SET "read_at" = COALESCE("read_at", "created_at", NOW()) WHERE "is_read" = TRUE AND "read_at" IS NULL',
     `
     CREATE TABLE IF NOT EXISTS "wallet_challenges" (
       "wallet_address" TEXT PRIMARY KEY,

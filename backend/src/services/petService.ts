@@ -1,5 +1,10 @@
 import { IsNull } from "typeorm";
-import { MedicalRecordStatus, PetStatus, UserRole } from "../types/enums";
+import {
+  MedicalRecordStatus,
+  NotificationEventType,
+  PetStatus,
+  UserRole,
+} from "../types/enums";
 import { randomUUID } from "crypto";
 import { AppDataSource } from "../config/dataSource";
 import { Pet } from "../entities/Pet";
@@ -7,7 +12,10 @@ import { User } from "../entities/User";
 import { OwnershipHistory } from "../entities/OwnershipHistory";
 import { CorrectionRequest } from "../entities/CorrectionRequest";
 import { AppError } from "../utils/errors";
-import { createNotification } from "./notificationService";
+import {
+  createNotification,
+  createNotificationsForUsers,
+} from "./notificationService";
 import { resolveOnChainPetId } from "../blockchain/petIdentityResolver";
 import {
   correctionFieldMap,
@@ -42,6 +50,14 @@ type TransferContext = {
 };
 
 type OwnershipHistoryStatus = "PENDING" | "COMPLETED";
+
+const listCorrectionReviewerUserIds = async () => {
+  const reviewers = await AppDataSource.getRepository(User).find({
+    where: [{ role: UserRole.CLINIC }, { role: UserRole.ADMIN }],
+    select: { id: true },
+  });
+  return reviewers.map((reviewer) => reviewer.id);
+};
 
 const buildOwnershipTimelineQuery = (petId: number) =>
   AppDataSource.getRepository(OwnershipHistory)
@@ -352,11 +368,19 @@ export const initiateTransfer = async (
     userId: context.newOwner.id,
     title: "Transfer kepemilikan selesai",
     message: `Kepemilikan hewan ${context.pet.name} telah dipindahkan ke akun Anda dan tervalidasi on-chain.`,
+    eventType: NotificationEventType.TRANSFER_INITIATED,
+    petId: context.pet.id,
+    sourceId: blockchain.txHash,
+    actionUrl: `/owner/pets/${context.pet.id}`,
   });
   await createNotification({
     userId: currentOwnerId,
     title: "Transfer kepemilikan berhasil",
     message: `Kepemilikan hewan ${context.pet.name} berhasil dipindahkan dan tervalidasi on-chain.`,
+    eventType: NotificationEventType.TRANSFER_INITIATED,
+    petId: context.pet.id,
+    sourceId: blockchain.txHash,
+    actionUrl: `/owner/pets/${context.pet.id}`,
   });
 
   if (!updatedPet) {
@@ -418,13 +442,78 @@ export const acceptTransfer = async (petId: number, newOwnerId: number) => {
     userId: transfer.fromOwnerId,
     title: "Transfer selesai",
     message: `Kepemilikan hewan ${pet.name} kini sudah diterima pemilik baru.`,
+    eventType: NotificationEventType.TRANSFER_ACCEPTED,
+    petId: pet.id,
+    sourceId: transfer.id,
+    actionUrl: `/owner/pets/${pet.id}`,
   });
   await createNotification({
     userId: transfer.toOwnerId,
     title: "Transfer diterima",
     message: `Anda kini tercatat sebagai pemilik ${pet.name}.`,
+    eventType: NotificationEventType.TRANSFER_ACCEPTED,
+    petId: pet.id,
+    sourceId: transfer.id,
+    actionUrl: `/owner/pets/${pet.id}`,
   });
 
+  if (!updatedPet) {
+    throw new AppError("Pet not found", 404);
+  }
+  return updatedPet;
+};
+
+// Tolak transfer kepemilikan yang masih pending oleh calon pemilik baru.
+export const rejectTransfer = async (petId: number, newOwnerId: number) => {
+  const historyRepo = AppDataSource.getRepository(OwnershipHistory);
+  const petRepo = AppDataSource.getRepository(Pet);
+  const transfer = await historyRepo.findOne({
+    where: { petId, toOwnerId: newOwnerId, transferredAt: IsNull() },
+  });
+
+  if (!transfer) {
+    throw new AppError("No pending transfer for this pet", 404);
+  }
+
+  const pet = await petRepo.findOne({
+    where: { id: petId },
+    select: { id: true, name: true, ownerId: true, status: true },
+  });
+  if (!pet) {
+    throw new AppError("Pet not found", 404);
+  }
+
+  await AppDataSource.transaction(async (manager) => {
+    await manager.getRepository(OwnershipHistory).delete({ id: transfer.id });
+
+    if (pet.status === PetStatus.TRANSFER_PENDING) {
+      await manager.getRepository(Pet).update(
+        { id: petId },
+        { status: PetStatus.REGISTERED, ownerId: transfer.fromOwnerId }
+      );
+    }
+  });
+
+  await createNotification({
+    userId: transfer.fromOwnerId,
+    title: "Transfer kepemilikan ditolak",
+    message: `Permintaan transfer untuk hewan ${pet.name} ditolak oleh calon pemilik baru.`,
+    eventType: NotificationEventType.TRANSFER_REJECTED,
+    petId: pet.id,
+    sourceId: transfer.id,
+    actionUrl: `/owner/pets/${pet.id}`,
+  });
+  await createNotification({
+    userId: transfer.toOwnerId,
+    title: "Anda menolak transfer kepemilikan",
+    message: `Transfer kepemilikan hewan ${pet.name} telah dibatalkan.`,
+    eventType: NotificationEventType.TRANSFER_REJECTED,
+    petId: pet.id,
+    sourceId: transfer.id,
+    actionUrl: `/owner/pets/${pet.id}`,
+  });
+
+  const updatedPet = await petRepo.findOne({ where: { id: petId } });
   if (!updatedPet) {
     throw new AppError("Pet not found", 404);
   }
@@ -515,7 +604,7 @@ export const createCorrectionRequest = async (params: {
     reason: params.reason ?? null,
   });
 
-  return correctionRepo.save(
+  const createdCorrection = await correctionRepo.save(
     correctionRepo.create({
       petId: params.petId,
       ownerId: params.ownerId,
@@ -526,4 +615,26 @@ export const createCorrectionRequest = async (params: {
       reason: params.reason ?? null,
     })
   );
+
+  try {
+    const reviewerUserIds = await listCorrectionReviewerUserIds();
+    await createNotificationsForUsers({
+      userIds: reviewerUserIds,
+      title: "Permintaan koreksi baru",
+      message: `Owner mengajukan koreksi ${params.fieldName} untuk ${pet.name}.`,
+      eventType: NotificationEventType.CORRECTION_SUBMITTED,
+      petId: pet.id,
+      sourceId: createdCorrection.id,
+      actionUrl: "/clinic/corrections",
+    });
+  } catch (error) {
+    console.error("[notification] correction submitted fanout failed", {
+      correctionId: createdCorrection.id,
+      petId: pet.id,
+      ownerId: params.ownerId,
+      error,
+    });
+  }
+
+  return createdCorrection;
 };
